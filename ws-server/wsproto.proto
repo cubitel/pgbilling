@@ -1,0 +1,38 @@
+
+package WSPROTO;
+
+/* Client messages */
+
+message ClientMessage {
+	optional uint32 sequence = 1;
+	optional LoginRequest loginrequest = 2;
+}
+
+message LoginRequest {
+	optional string login = 1;
+	optional string password = 2;
+}
+
+/* Server messages */
+
+message ServerMessage {
+	optional uint32 sequence = 1;
+	optional ErrorResponse error = 2;
+    optional LoginResponse loginresponse = 3;
+}
+
+enum ErrorCode {
+	UNKNOWN = 0;
+	SERVER_ERROR = 1;
+	NOT_LOGGED_IN = 2;
+};
+
+message ErrorResponse {
+	required ErrorCode code = 1 [default = UNKNOWN];
+	optional string message = 2;
+	optional bool fatal = 3;
+}
+
+message LoginResponse {
+	required uint32 status = 1;
+}

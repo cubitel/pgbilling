@@ -1,0 +1,8 @@
+Makefile
+cmake_install.cmake
+install_manifest.txt
+CMakeCache.txt
+CMakeFiles
+*.pb.cc
+*.pb.h
+ws-server/ws-server
