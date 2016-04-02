@@ -21,6 +21,7 @@ if ( NOT PQXX_INCLUDE_DIRECTORIES OR NOT PQXX_LIBRARIES )
         /usr/local/lib
         /usr/lib/x86_64-linux-gnu
         /usr/lib
+        /usr/lib64
       DOC "Location of libpqxx library"
       NO_DEFAULT_PATH
     )
