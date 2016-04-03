@@ -3,10 +3,14 @@ var wsproto;
 
 function switchToLoginView()
 {
+	document.getElementById("divLogin").style.display = "block";
+	document.getElementById("divMain").style.display = "none";
 }
 
 function switchToMainView()
 {
+	document.getElementById("divLogin").style.display = "none";
+	document.getElementById("divMain").style.display = "block";
 }
 
 function wsCreate()
@@ -29,7 +33,8 @@ function wsOpen()
 
 function wsClose()
 {
-	webix.message("Connection closed");
+	switchToLoginView();
+	webix.message("Соединение с сервером прервано.");
 }
 
 function wsMessage(evt)
@@ -43,11 +48,17 @@ function wsMessage(evt)
 		
 		if (msg.error.fatal) {
 			ws.close();
+			return;
 		}
 	}
 
 	if (msg.loginresponse) {
-		alert(JSON.stringify(msg.loginresponse));
+		if (msg.loginresponse.status == 0) {
+			webix.message("Неверный логин или пароль.");
+			ws.close();
+			return;
+		}
+		switchToMainView();
 	}
 }
 
@@ -62,7 +73,10 @@ function init()
 	wsproto = wsprotofile.build("WSPROTO");
 
 	webix.ui({
+		id: "loginView",
+		container: "divLogin",
 		view: 'window',
+		hidden: false,
 		head: "Вход в личный кабинет",
 		move: true,
 		position: 'center',
@@ -82,7 +96,17 @@ function init()
 				}
 			]
 		}
-	}).show();
+	});
+	
+	webix.ui({
+		id: "mainView",
+		container: "divMain",
+		rows: [
+			{type: 'header', template: "Личный кабинет"}
+		]
+	});
+
+	switchToLoginView();
 };
 
 webix.ready(function() {

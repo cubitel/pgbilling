@@ -91,12 +91,14 @@ static void processMessage(WsServer& server, Client& client,
 	}
 
 	if (req.has_loginrequest()) {
-		resp.mutable_loginresponse()->set_status(0);
+		int status = 0;
 
 		pqxx::work trn(*client.psql);
-		trn.set_variable("login", req.loginrequest().login());
-		trn.set_variable("pass", req.loginrequest().password());
-		auto sqlres = trn.exec("SELECT login(:login, :pass)");
+		auto sqlres = trn.prepared("login")(req.loginrequest().login())(req.loginrequest().password()).exec();
+		trn.commit();
+
+		sqlres[0]["login"].to(status);
+		resp.mutable_loginresponse()->set_status(status);
 	}
 
 	// Send response
@@ -122,6 +124,8 @@ int main()
 	        [&server,&cfgServer](shared_ptr<WsServer::Connection> connection) {
 				try {
 					auto psql = make_shared<pqxx::connection>(cfgServer.get<std::string>("database", ""));
+					psql->prepare("login", "SELECT login($1, $2)");
+
 					newClient(connection, psql);
 				} catch (const std::exception &e) {
 					WSPROTO::ServerMessage resp;
