@@ -4,7 +4,7 @@ webix UI v.3.2.4
 This software is allowed to use under GPL or you need to obtain Commercial License 
  to use it in non-GPL project. Please contact sales@webix.com for details
 */
-.webix_view{font-family:'PT Sans',Tahoma;font-size:15px;color:#666;cursor:default;overflow:hidden;border:0 solid #ddd;background-color:#fff;white-space:normal;-webkit-appearance:none}
+.webix_view{font-family:Verdana,'PT Sans',Tahoma;font-size:15px;color:#666;cursor:default;overflow:hidden;border:0 solid #ddd;background-color:#fff;white-space:normal;-webkit-appearance:none}
 .webix_view.webix_form{background-color:#fff}
 body{-webkit-tap-highlight-color:transparent!important}
 .webix_inp_static,button,input,select,textarea{outline:0}

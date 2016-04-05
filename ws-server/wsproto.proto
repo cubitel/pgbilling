@@ -6,6 +6,7 @@ package WSPROTO;
 message ClientMessage {
 	optional uint32 sequence = 1;
 	optional LoginRequest loginrequest = 2;
+	optional SelectRequest selectrequest = 3;
 }
 
 message LoginRequest {
@@ -13,12 +14,17 @@ message LoginRequest {
 	optional string password = 2;
 }
 
+message SelectRequest {
+	required string table = 1;
+}
+
 /* Server messages */
 
 message ServerMessage {
 	optional uint32 sequence = 1;
 	optional ErrorResponse error = 2;
-    optional LoginResponse loginresponse = 3;
+	optional LoginResponse loginresponse = 3;
+	optional SelectResponse selectresponse = 4;
 }
 
 enum ErrorCode {
@@ -35,4 +41,9 @@ message ErrorResponse {
 
 message LoginResponse {
 	required uint32 status = 1;
+}
+
+message SelectResponse {
+	repeated string columns = 1;
+	repeated string data = 2;
 }

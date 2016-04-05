@@ -1,5 +1,7 @@
 #include <boost/property_tree/ini_parser.hpp>
+#include <boost/program_options.hpp>
 #include <string>
+#include <boost/regex.hpp>
 #include <pqxx/pqxx>
 
 #include "wsproto.pb.h"
@@ -8,6 +10,8 @@
 #define CONFIG_FILE "/opt/billing/etc/billd.conf"
 
 using namespace std;
+
+namespace po = boost::program_options;
 
 typedef SimpleWeb::SocketServer<SimpleWeb::WS> WsServer;
 
@@ -73,6 +77,17 @@ static void sendMessage(WsServer& server, shared_ptr<WsServer::Connection> conne
 }
 
 /*
+ * Check relation (table, view, field, etc) name for valid charachers
+ * Throws std::runtime_error if name has invalid characters
+ */
+static void checkRelationName(std::string& name)
+{
+	if (boost::regex_match(name, boost::regex("[[^:alnum:]]"))) {
+		throw std::runtime_error("Invalid characters in relation name.");
+	}
+}
+
+/*
  * Parse client message and dispatch command
  */
 static void processMessage(WsServer& server, Client& client,
@@ -100,17 +115,51 @@ static void processMessage(WsServer& server, Client& client,
 		sqlres[0]["login"].to(status);
 		resp.mutable_loginresponse()->set_status(status);
 	}
+	
+	if (req.has_selectrequest()) {
+		pqxx::work trn(*client.psql);
+		
+		std::string table = req.selectrequest().table();
+		checkRelationName(table);
+		std::string sql = "SELECT * FROM " + table;
+		
+		auto sqlres = trn.exec(sql);
+		trn.commit();
+		
+		auto sqlresp = resp.mutable_selectresponse();
+		for (unsigned int i = 0; i < sqlres.size(); i++) {
+			const auto row = sqlres[i];
+			for (unsigned int c = 0; c < row.size(); c++) {
+				if (i == 0) {
+					sqlresp->add_columns(row[c].name());
+				}
+				std::string s;
+				row[c].to(s);
+				sqlresp->add_data(s);
+			}
+		}
+	}
 
 	// Send response
 	sendMessage(server, client.connection, resp);
 }
 
-int main()
+int main(int ac, char**av)
 {
+	// Command-line options
+	po::options_description desc("Allowed options");
+	desc.add_options()
+		("conf,c", po::value<std::string>()->default_value(CONFIG_FILE), "Set configuration file")
+	;
+	
+	po::variables_map vm;
+	po::store(po::parse_command_line(ac, av, desc), vm);
+	po::notify(vm);
+	
 	// Read config file
 	boost::property_tree::ptree config;
 
-	boost::property_tree::read_ini(CONFIG_FILE, config);
+	boost::property_tree::read_ini(vm["conf"].as<std::string>(), config);
 
 	const boost::property_tree::ptree& cfgServer = config.get_child("server");
 
