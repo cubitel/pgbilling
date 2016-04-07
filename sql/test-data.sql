@@ -18,7 +18,7 @@ BEGIN
     INSERT INTO services_addr (service_id, ip_address) VALUES(service_id, '1.2.3.4');
     INSERT INTO services_addr (service_id, ip_address) VALUES(service_id, '2a00:d48::/32');
 
-    INSERT INTO services (user_id, account_id, service_type, service_name) VALUES(user_id, account_id, 1, 'TEST-02');
+    INSERT INTO services (user_id, account_id, service_type, service_name, service_state) VALUES(user_id, account_id, 1, 'TEST-02', 2);
 END;
 $$;
 

@@ -66,6 +66,7 @@ COMMENT ON COLUMN accounts.balance IS 'Баланс лицевого счета'
 
 CREATE TABLE IF NOT EXISTS account_logs (
     log_id serial PRIMARY KEY,
+    user_id integer NOT NULL REFERENCES users,
     account_id integer NOT NULL REFERENCES accounts,
     oper_time timestamp NOT NULL,
     amount numeric(10,2) NOT NULL,
@@ -327,6 +328,12 @@ BEGIN
         WHERE user_id IN (SELECT user_id FROM sessions);
 
     GRANT SELECT ON accounts TO cabinet;
+
+    CREATE TEMPORARY VIEW account_logs AS
+        SELECT * FROM system.account_logs
+        WHERE user_id IN (SELECT user_id FROM sessions);
+
+    GRANT SELECT ON account_logs TO cabinet;
 
     CREATE TEMPORARY VIEW services AS
         SELECT

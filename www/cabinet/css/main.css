@@ -1,0 +1,14 @@
+
+.page-header {
+	font-size: 18px;
+}
+
+.balance {
+	font-size: 27px;
+	float: right;
+}
+
+.balance-desc {
+	clear: both;
+	text-align: right;
+}
