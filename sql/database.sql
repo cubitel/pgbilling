@@ -123,6 +123,16 @@ CREATE OR REPLACE RULE insert_notify AS
     ON INSERT TO payments
     DO ALSO NOTIFY payments_insert;
 
+-- system.service_states
+
+CREATE TABLE IF NOT EXISTS service_state_names (
+	service_state integer PRIMARY_KEY,
+	service_state_name varchar(128) NOT NULL
+);
+
+INSERT INTO service_state_names (service_state, service_state_name) VALUES(1, 'Активно') ON CONFLICT DO NOTHING;
+INSERT INTO service_state_names (service_state, service_state_name) VALUES(2, 'Заблокировано') ON CONFLICT DO NOTHING;
+
 -- system.services
 
 CREATE TABLE IF NOT EXISTS services (
@@ -132,7 +142,7 @@ CREATE TABLE IF NOT EXISTS services (
     service_type integer NOT NULL,
     service_name varchar(128) NOT NULL,
     service_pass varchar(128),
-    service_state integer NOT NULL DEFAULT 1,
+    service_state integer NOT NULL REFERENCES service_state_names DEFAULT 1,
     current_tarif integer REFERENCES tarifs(tarif_id),
     next_tarif integer REFERENCES tarifs(tarif_id),
     inet_speed integer,
@@ -165,6 +175,19 @@ CREATE TABLE IF NOT EXISTS services_addr (
 
 COMMENT ON TABLE services_addr IS 'IP адреса для услуг';
 
+-- system.task_status_names
+
+CREATE TABLE IF NOT EXISTS task_status_names (
+	task_status integer PRIMARY_KEY,
+	task_status_name varchar(128) NOT NULL
+);
+
+INSERT INTO task_status_names (task_status, task_status_name) VALUES(1, 'В очереди') ON CONFLICT DO NOTHING;
+INSERT INTO task_status_names (task_status, task_status_name) VALUES(2, 'Выполняется') ON CONFLICT DO NOTHING;
+INSERT INTO task_status_names (task_status, task_status_name) VALUES(3, 'Выполнено') ON CONFLICT DO NOTHING;
+INSERT INTO task_status_names (task_status, task_status_name) VALUES(4, 'Отменено') ON CONFLICT DO NOTHING;
+INSERT INTO task_status_names (task_status, task_status_name) VALUES(5, 'Ошибка') ON CONFLICT DO NOTHING;
+
 -- system.tasks
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -175,7 +198,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     service_id integer REFERENCES services ON DELETE CASCADE,
     tarif_id integer REFERENCES tarifs ON DELETE CASCADE,
     task_name varchar(128) NOT NULL,
-    task_status integer NOT NULL,
+    task_status integer NOT NULL REFERENCES task_status_names DEFAULT 1,
     time_created timestamp NOT NULL DEFAULT now(),
     time_completed timestamp NOT NULL
 );
