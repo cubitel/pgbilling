@@ -371,13 +371,32 @@ SET SCHEMA 'network';
 
 -- GRANT to network
 
-CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_mac macaddr, n_port integer)
+CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
+RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
+DECLARE
+	m_password varchar;
+BEGIN
+	SELECT service_pass INTO m_password FROM system.services WHERE service_name = vc_username;
+	IF NOT FOUND THEN
+		RETURN;
+	END IF;
+
+    id := 1;
+    username := vc_username;
+    attribute := 'Cleartext-Password';
+    value := m_password;
+    op := ':=';
+    RETURN NEXT;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION rad_reply(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 BEGIN
     id := 1;
     username := vc_username;
-    attribute := 'Cleartext-Password';
-    value := '123';
+    attribute := 'Class';
+    value := '1';
     op := ':=';
     RETURN NEXT;
 END
