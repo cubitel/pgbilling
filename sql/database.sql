@@ -126,12 +126,21 @@ CREATE OR REPLACE RULE insert_notify AS
 -- system.service_states
 
 CREATE TABLE IF NOT EXISTS service_state_names (
-	service_state integer PRIMARY_KEY,
+	service_state integer PRIMARY KEY,
 	service_state_name varchar(128) NOT NULL
 );
 
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(1, 'Активно') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(2, 'Заблокировано') ON CONFLICT DO NOTHING;
+
+-- system.service_types
+
+CREATE TABLE IF NOT EXISTS service_types (
+	service_type integer PRIMARY KEY,
+	service_type_name varchar(128) NOT NULL
+);
+
+INSERT INTO service_types (service_type, service_type_name) VALUES(1, 'Доступ в интернет') ON CONFLICT DO NOTHING;
 
 -- system.services
 
@@ -139,14 +148,15 @@ CREATE TABLE IF NOT EXISTS services (
     service_id serial PRIMARY KEY,
     user_id integer NOT NULL REFERENCES users,
     account_id integer NOT NULL REFERENCES accounts,
-    service_type integer NOT NULL,
+    service_type integer NOT NULL REFERENCES service_types,
     service_name varchar(128) NOT NULL,
     service_pass varchar(128),
     service_state integer NOT NULL REFERENCES service_state_names DEFAULT 1,
     current_tarif integer REFERENCES tarifs(tarif_id),
     next_tarif integer REFERENCES tarifs(tarif_id),
     inet_speed integer,
-    mac_address macaddr
+    mac_address macaddr,
+    CHECK(service_type != 1 OR service_state != 1 OR (inet_speed IS NOT NULL AND inet_speed > 0))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS services_mac ON services (mac_address);
@@ -178,7 +188,7 @@ COMMENT ON TABLE services_addr IS 'IP адреса для услуг';
 -- system.task_status_names
 
 CREATE TABLE IF NOT EXISTS task_status_names (
-	task_status integer PRIMARY_KEY,
+	task_status integer PRIMARY KEY,
 	task_status_name varchar(128) NOT NULL
 );
 
@@ -237,6 +247,11 @@ CREATE OR REPLACE VIEW payments AS
     LEFT JOIN system.payagents ON payagents.agent_id = payments.agent_id
     LEFT JOIN system.accounts ON accounts.account_id = payments.account_id;
 
+-- billing.service_state_names
+
+CREATE OR REPLACE VIEW service_state_names AS
+    SELECT * FROM system.service_state_names;
+
 -- billing.services
 
 CREATE OR REPLACE VIEW services AS
@@ -276,6 +291,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE VIEW tarifs AS
     SELECT * FROM system.tarifs;
+
+-- billing.task_status_names
+
+CREATE OR REPLACE VIEW task_status_names AS
+    SELECT * FROM system.task_status_names;
 
 -- billing.tasks
 
