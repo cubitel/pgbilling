@@ -19,6 +19,9 @@ BEGIN
     INSERT INTO services_addr (service_id, ip_address) VALUES(service_id, '2a00:d48::/32');
 
     INSERT INTO services (user_id, account_id, service_type, service_name, service_state) VALUES(user_id, account_id, 1, 'TEST-02', 2);
+
+    INSERT INTO radius_attrs (service_state, attr_name, attr_value) VALUES(1, 'Dynamic-Qos-Param', 'police-circuit-rate rate-absolute {kbps}');
+    INSERT INTO radius_attrs (service_state, attr_name, attr_value) VALUES(1, 'Dynamic-Qos-Param', 'meter-circuit-rate rate-absolute {kbps}');
 END;
 $$;
 

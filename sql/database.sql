@@ -123,6 +123,15 @@ CREATE OR REPLACE RULE insert_notify AS
     ON INSERT TO payments
     DO ALSO NOTIFY payments_insert;
 
+-- system.radius_attrs
+
+CREATE TABLE IF NOT EXISTS radius_attrs (
+	attr_id serial PRIMARY KEY,
+	service_state integer NOT NULL,
+	attr_name varchar(128) NOT NULL,
+	attr_value varchar(128) NOT NULL
+);
+
 -- system.service_states
 
 CREATE TABLE IF NOT EXISTS service_state_names (
@@ -435,13 +444,38 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION rad_reply(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
+DECLARE
+	m_service system.services%rowtype;
+	m_attr system.radius_attrs%rowtype;
+	m_ip inet;
 BEGIN
-    id := 1;
-    username := vc_username;
-    attribute := 'Class';
-    value := '1';
-    op := ':=';
-    RETURN NEXT;
+	SELECT * INTO m_service FROM system.services WHERE service_name = vc_username;
+	IF NOT FOUND THEN
+		RETURN;
+	END IF;
+
+	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state
+	LOOP
+		value := m_attr.attr_value;
+		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
+
+		id := m_attr.attr_id;
+		username := vc_username;
+		attribute := m_attr.attr_name;
+		op := ':=';
+		RETURN NEXT;
+	END LOOP;
+
+	FOR m_ip IN SELECT ip_address FROM system.services_addr WHERE service_id = m_service.service_id
+		AND family(ip_address) = 4
+	LOOP
+		id := 0;
+		username := vc_username;
+		attribute := 'Framed-IP-Address';
+		op := ':=';
+		value := m_ip;
+		RETURN NEXT;
+	END LOOP;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
