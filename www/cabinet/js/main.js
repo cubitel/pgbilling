@@ -283,9 +283,6 @@ function init()
 									"<div class='balance'>" + data.balance + "</div>" +
 									"<div class='balance-desc'>Баланс, руб.</div>";
 							}
-						},{
-							autoheight: true,
-							template: JSON.stringify(accounts[a])
 						}]
 					});
 					
@@ -297,11 +294,19 @@ function init()
 									autoheight: true,
 									data: services[s],
 									template: function(data) {
-										return "<span class='webix_icon fa-globe'></span>Доступ в интернет (" + data.service_name + ")";
+										return "<span class='webix_icon fa-globe'></span>Доступ в интернет (" + data.service_name + ")" +
+											"<div style='float: right;'>" + data.service_state_name + "</div>";
 									}
 								},{
 									autoheight: true,
-									template: JSON.stringify(services[s])
+									data: services[s],
+									template: function(data) {
+										var s = "";
+										if (data.current_tarif_name != "") s += "<div>Тариф: " + data.current_tarif_name + "</div>";
+										if (data.inet_speed != "") s += "<div>Скорость: " + Math.round(data.inet_speed / 1000) + " Мбит/с</div>";
+										if (data.next_tarif_name != "") s += "<div>Следующий тариф: " + data.next_tarif_name + "</div>";
+										return s;
+									}
 								}]
 							});
 						}

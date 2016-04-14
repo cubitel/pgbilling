@@ -39,13 +39,19 @@ BEGIN
             account_id,
             service_type,
             service_name,
-            service_state,
+            services.service_state,
+            service_state_name,
             current_tarif,
             next_tarif,
+            t1.tarif_name AS current_tarif_name,
+            t2.tarif_name AS next_tarif_name,
             inet_speed,
             mac_address,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list
         FROM system.services
+        LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
+        LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif
+        LEFT JOIN system.tarifs AS t2 ON t2.tarif_id = services.next_tarif
         WHERE user_id IN (SELECT user_id FROM sessions);
 
     GRANT SELECT ON services TO cabinet;
