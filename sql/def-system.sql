@@ -78,6 +78,28 @@ COMMENT ON COLUMN account_logs.oper_time IS 'Дата и время операц
 COMMENT ON COLUMN account_logs.amount IS 'Сумма операции';
 COMMENT ON COLUMN account_logs.descr IS 'Описание операции';
 
+-- system.addr_fias
+
+CREATE TABLE IF NOT EXISTS addr_fias (
+	guid varchar(36) NOT NULL PRIMARY KEY,
+	parent_guid varchar(36),
+	short_name varchar(10) NOT NULL,
+	off_name varchar(120) NOT NULL,
+	postal_code varchar(6) NOT NULL
+);
+
+COMMENT ON TABLE addr_fias IS 'Каталог адресов по ФИАС';
+
+-- system.addr_houses
+
+CREATE TABLE IF NOT EXISTS addr_houses (
+	house_id serial PRIMARY KEY,
+	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
+	house_number varchar(10) NOT NULL
+);
+
+COMMENT ON TABLE addr_houses IS 'Каталог домов';
+
 -- system.tarifs
 
 CREATE TABLE IF NOT EXISTS tarifs (
@@ -163,6 +185,8 @@ CREATE TABLE IF NOT EXISTS services (
     next_tarif integer REFERENCES tarifs(tarif_id),
     inet_speed integer,
     mac_address macaddr,
+    house_id integer REFERENCES addr_houses,
+    flat_number integer,
     CHECK(service_type != 1 OR service_state != 1 OR (inet_speed IS NOT NULL AND inet_speed > 0))
 );
 
@@ -225,3 +249,55 @@ COMMENT ON TABLE tasks IS 'Задачи для внешних систем';
 CREATE OR REPLACE RULE insert_notify AS
     ON INSERT TO tasks
     DO ALSO NOTIFY tasks_insert;
+
+-- system.user_contact_types
+
+CREATE TABLE IF NOT EXISTS user_contact_types (
+	contact_type integer NOT NULL PRIMARY KEY,
+	contact_type_name varchar(128) NOT NULL
+);
+
+INSERT INTO user_contact_types (contact_type, contact_type_name) VALUES(1, 'Телефон') ON CONFLICT DO NOTHING;
+
+-- system.user_contacts
+
+CREATE TABLE IF NOT EXISTS user_contacts (
+	contact_id serial PRIMARY KEY,
+	user_id integer NOT NULL REFERENCES users,
+	contact_type integer NOT NULL REFERENCES user_contact_types,
+	contact_value varchar(128) NOT NULL
+	CHECK(contact_type != 1 OR (contact_value SIMILAR TO '[0-9]{10}'))
+);
+
+-- Functions
+
+CREATE OR REPLACE FUNCTION services_get_addr(n_house_id integer, n_flat integer) RETURNS varchar AS $$
+DECLARE
+	m_address varchar;
+	m_house addr_houses%rowtype;
+	m_fias addr_fias%rowtype;
+	m_guid varchar;
+	i integer;
+BEGIN
+	IF n_house_id IS NULL THEN
+		RETURN '';
+	END IF;
+
+	SELECT * INTO m_house FROM addr_houses WHERE house_id = n_house_id;
+
+	m_guid := m_house.street_guid;
+	m_address := '';
+	FOR i IN 1..3 LOOP
+		SELECT * INTO m_fias FROM addr_fias WHERE guid = m_guid;
+		IF NOT FOUND THEN
+			EXIT;
+		END IF;
+		m_address := m_fias.short_name || ' ' || m_fias.off_name || ', ' || m_address;
+		m_guid := m_fias.parent_guid;
+	END LOOP;
+	
+	m_address := m_address || 'д. ' || m_house.house_number;
+
+	RETURN m_address;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -47,7 +47,8 @@ BEGIN
             t2.tarif_name AS next_tarif_name,
             inet_speed,
             mac_address,
-            array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list
+            array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
+            services_get_addr(house_id, flat_number) AS postaddr
         FROM system.services
         LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
         LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif

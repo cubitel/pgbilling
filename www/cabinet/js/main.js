@@ -302,6 +302,7 @@ function init()
 									data: services[s],
 									template: function(data) {
 										var s = "";
+										if (data.postaddr != "") s += "<div>Адрес: " + data.postaddr + "</div>";
 										if (data.current_tarif_name != "") s += "<div>Тариф: " + data.current_tarif_name + "</div>";
 										if (data.inet_speed != "") s += "<div>Скорость: " + Math.round(data.inet_speed / 1000) + " Мбит/с</div>";
 										if (data.next_tarif_name != "") s += "<div>Следующий тариф: " + data.next_tarif_name + "</div>";

@@ -14,6 +14,16 @@ CREATE OR REPLACE VIEW accounts AS
 CREATE OR REPLACE VIEW account_logs AS
     SELECT * FROM system.account_logs;
 
+-- billing.addr_fias
+
+CREATE OR REPLACE VIEW addr_fias AS
+    SELECT * FROM system.addr_fias;
+
+-- billing.addr_houses
+
+CREATE OR REPLACE VIEW addr_houses AS
+    SELECT * FROM system.addr_houses;
+
 -- billing.payments
 
 CREATE OR REPLACE VIEW payments AS
@@ -44,7 +54,9 @@ CREATE OR REPLACE VIEW services AS
         next_tarif,
         inet_speed,
         mac_address,
-        array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list
+        array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
+        house_id,
+        flat_number
     FROM system.services;
 
 CREATE OR REPLACE FUNCTION services_add_ip(n_service_id integer, n_address inet) RETURNS void AS $$
@@ -111,6 +123,16 @@ BEGIN
     UPDATE system.users SET pass = vc_pass WHERE user_id = n_user_id;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- billing.user_contact_types
+
+CREATE OR REPLACE VIEW user_contact_types AS
+    SELECT * FROM system.user_contact_types;
+
+-- billing.user_contacts
+
+CREATE OR REPLACE VIEW user_contacts AS
+    SELECT * FROM system.user_contacts;
 
 
 -- GRANT to billing

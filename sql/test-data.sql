@@ -9,7 +9,7 @@ BEGIN
     INSERT INTO users (user_name, login_type, login, pass) VALUES('Иванов С. С.', 1, 'siva', '123');
     SELECT lastval() INTO user_id;
 
-    INSERT INTO accounts (user_id, account_number, balance) VALUES(user_id, '1001', 10);
+    INSERT INTO accounts (user_id, account_number, balance) VALUES(user_id, '1000011', 10);
     SELECT lastval() INTO account_id;
 
     INSERT INTO services (user_id, account_id, service_type, service_name, service_pass, inet_speed) VALUES(user_id, account_id, 1, 'TEST-01', '123', 10000);
