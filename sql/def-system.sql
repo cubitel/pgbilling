@@ -100,6 +100,19 @@ CREATE TABLE IF NOT EXISTS addr_houses (
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
 
+-- system.addr_connected
+
+CREATE TABLE IF NOT EXISTS addr_connected (
+	record_id serial PRIMARY KEY,
+	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
+	odd_min integer NOT NULL,
+	odd_max integer NOT NULL,
+	even_min integer NOT NULL,
+	even_max integer NOT NULL
+);
+
+COMMENT ON TABLE addr_connected IS 'Зона охвата';
+
 -- system.tarifs
 
 CREATE TABLE IF NOT EXISTS tarifs (
