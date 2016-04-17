@@ -97,15 +97,6 @@ function switchToMainView()
 						value: "Главная",
 						icon: "home",
 					}]
-				},{
-					id: "payment",
-					value: "Оплатить",
-					open: true,
-					data: [{
-						id: "payment-yandex",
-						value: "Яндекс.Деньги",
-						icon: "credit-card"
-					}]
 				}]
 			},{
 				id: "panel",
@@ -213,6 +204,41 @@ function doLogin()
 	wsCreate();
 }
 
+function doAccountPay(account)
+{
+	webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Пополнить счет",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "yandexForm",
+			width: 300,
+			elements: [
+				{view: 'text', label: 'Сумма платежа', labelPosition: 'top', name: 'sum'},
+				{
+					view: "button",
+					value: "Оплатить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("yandexForm").getValues();
+						p.customerNumber = account;
+						p.shopId = cfgYandexShopId;
+						p.scid = cfgYandexScid;
+						webix.send("https://money.yandex.ru/eshop.xml", p);
+					}
+				}
+			]
+		}
+	});
+
+	$$("loginForm").setValues({sum: ''});
+	webix.UIManager.setFocus($$("yandexForm"));
+}
+
 function init()
 {
 	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
@@ -279,9 +305,13 @@ function init()
 							autoheight: true,
 							data: accounts[a],
 							template: function(data) {
-								return "<span class='webix_icon fa-rub'></span>Лицевой счёт № " + data.account_number +
+								var html = "<span class='webix_icon fa-rub'></span>Лицевой счёт № " + data.account_number +
 									"<div class='balance'>" + data.balance + "</div>" +
-									"<div class='balance-desc'>Баланс, руб.</div>";
+									"<div class='balance-desc'>Баланс, руб.</div>" +
+									"<div class='buttons'>" +
+									"<a class='button' href='javascript:doAccountPay(\"" + data.account_number + "\");'><span class='webix_icon fa-plus'></span>Пополнить счет</a>" +
+									"</div>";
+								return html;
 							}
 						}]
 					});
@@ -294,8 +324,12 @@ function init()
 									autoheight: true,
 									data: services[s],
 									template: function(data) {
+										var icon = "check";
+										if (data.service_state != 1) icon = "close";
+										var state = "<span class='webix_icon fa-" + icon + " service-state-" + data.service_state + "'></span>" +
+											"<span class='service-state-" + data.service_state + "'>" + data.service_state_name + "</span>";
 										return "<span class='webix_icon fa-globe'></span>Доступ в интернет (" + data.service_name + ")" +
-											"<div style='float: right;'>" + data.service_state_name + "</div>";
+											"<div style='float: right;'>" + state + "</div>";
 									}
 								},{
 									autoheight: true,
@@ -318,38 +352,6 @@ function init()
 		});
 	});
 	
-	/* Yandex.money */
-	
-	page("payment-yandex", {
-		rows: [{
-			autoheight: true,
-			template: "<div class='page-header'>Оплата через Яндекс.Деньги</div>"
-		},{
-			cols: [{
-				view: 'form',
-				id: "yandexForm",
-				width: 300,
-				elements: [
-					{view: 'text', label: 'Договор', labelPosition: 'top', name: 'customerNumber'},
-					{view: 'text', label: 'Сумма', labelPosition: 'top', name: 'sum'},
-					{
-						view: "button",
-						value: "Оплатить",
-						width: 150,
-						click: function() {
-							var p = $$("yandexForm").getValues();
-							p.shopId = cfgYandexShopId;
-							p.scid = cfgYandexScid;
-							webix.send("https://money.yandex.ru/eshop.xml", p);
-						}
-					}
-				]
-			},{
-			}]
-		},{}]
-	}, function() {
-	});
-
 	/* Display login dialog */
 	switchToLoginView();
 };
