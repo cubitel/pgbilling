@@ -41,6 +41,7 @@ BEGIN
 	LOOP
 		value := m_attr.attr_value;
 		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
+		SELECT replace(value, '{Bps}', (m_service.inet_speed * 128)::varchar) INTO value;
 
 		id := m_attr.attr_id;
 		username := vc_username;
@@ -53,10 +54,15 @@ BEGIN
 		AND family(ip_address) = 4
 	LOOP
 		id := 0;
-		username := vc_username;
-		attribute := 'Framed-IP-Address';
 		op := ':=';
+		username := vc_username;
+
+		attribute := 'Framed-IP-Address';
 		value := m_ip;
+		RETURN NEXT;
+		
+		attribute := 'Service-Type';
+		value := 'Framed-User';
 		RETURN NEXT;
 	END LOOP;
 END
