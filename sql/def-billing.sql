@@ -61,7 +61,8 @@ CREATE OR REPLACE VIEW services AS
         mac_address,
         array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
         house_id,
-        flat_number
+        flat_number,
+        service_pass
     FROM system.services;
 
 CREATE OR REPLACE FUNCTION services_add_ip(n_service_id integer, n_address inet) RETURNS void AS $$
@@ -112,7 +113,7 @@ CREATE OR REPLACE RULE tasks_delete AS
 -- billing.users
 
 CREATE OR REPLACE VIEW users AS
-    SELECT user_id, user_name, login FROM system.users;
+    SELECT user_id, user_name, login, pass FROM system.users;
 
 COMMENT ON VIEW users IS 'Абоненты';
 COMMENT ON COLUMN users.user_id IS 'Идентификатор абонента';
