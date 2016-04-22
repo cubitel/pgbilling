@@ -5,5 +5,6 @@ BEGIN TRANSACTION;
 \i def-cabinet.sql
 \i def-network.sql
 \i def-payments.sql
+\i def-site.sql
 
 COMMIT;
