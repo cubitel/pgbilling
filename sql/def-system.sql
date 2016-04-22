@@ -90,6 +90,16 @@ CREATE TABLE IF NOT EXISTS addr_fias (
 
 COMMENT ON TABLE addr_fias IS 'Каталог адресов по ФИАС';
 
+-- system.addr_fias_houses
+
+CREATE TABLE IF NOT EXISTS addr_fias_houses (
+	house_guid varchar(36) NOT NULL PRIMARY KEY,
+	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
+	house_num varchar(10) NOT NULL
+);
+
+COMMENT ON TABLE addr_fias_houses IS 'Каталог домов по ФИАС';
+
 -- system.addr_houses
 
 CREATE TABLE IF NOT EXISTS addr_houses (
