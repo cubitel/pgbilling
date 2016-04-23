@@ -105,7 +105,8 @@ COMMENT ON TABLE addr_fias_houses IS 'Каталог домов по ФИАС';
 CREATE TABLE IF NOT EXISTS addr_houses (
 	house_id serial PRIMARY KEY,
 	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
-	house_number varchar(10) NOT NULL
+	house_number varchar(10) NOT NULL,
+	location geometry(Point, 4326)
 );
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
@@ -329,6 +330,12 @@ CREATE TABLE IF NOT EXISTS user_contacts (
 );
 
 -- Functions
+
+CREATE OR REPLACE FUNCTION addr_set_location(n_house_id integer, n_lon float, n_lat float) RETURNS void AS $$
+BEGIN
+	UPDATE addr_houses SET location = ST_SetSRID(ST_Point(n_lon, n_lat), 4326) WHERE house_id = n_house_id;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION services_get_addr(n_house_id integer, n_flat integer) RETURNS varchar AS $$
 DECLARE
