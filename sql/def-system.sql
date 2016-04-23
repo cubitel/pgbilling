@@ -262,9 +262,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     service_id integer REFERENCES services ON DELETE CASCADE,
     tarif_id integer REFERENCES tarifs ON DELETE CASCADE,
     task_name varchar(128) NOT NULL,
+    task_params varchar(128) NOT NULL,
     task_status integer NOT NULL REFERENCES task_status_names DEFAULT 1,
     time_created timestamp NOT NULL DEFAULT now(),
-    time_completed timestamp NOT NULL
+    time_completed timestamp
 );
 
 COMMENT ON TABLE tasks IS 'Задачи для внешних систем';
@@ -272,6 +273,41 @@ COMMENT ON TABLE tasks IS 'Задачи для внешних систем';
 CREATE OR REPLACE RULE insert_notify AS
     ON INSERT TO tasks
     DO ALSO NOTIFY tasks_insert;
+
+-- system.ticket_statuses
+
+CREATE TABLE IF NOT EXISTS ticket_statuses (
+	ticket_status integer NOT NULL PRIMARY KEY,
+	ticket_status_name varchar(128) NOT NULL
+);
+
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(1, 'Новая') ON CONFLICT DO NOTHING;
+
+-- system.ticket_types
+
+CREATE TABLE IF NOT EXISTS ticket_types (
+	ticket_type integer NOT NULL PRIMARY KEY,
+	ticket_type_name varchar(128) NOT NULL
+);
+
+INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(1, 'Подключение услуги') ON CONFLICT DO NOTHING;
+
+-- system.tickets
+
+CREATE TABLE IF NOT EXISTS tickets (
+	ticket_id serial PRIMARY KEY,
+	ticket_type integer NOT NULL REFERENCES ticket_types,
+	ticket_status integer NOT NULL REFERENCES ticket_statuses DEFAULT 1,
+	user_id integer REFERENCES users ON DELETE CASCADE,
+	service_id integer REFERENCES services ON DELETE CASCADE,
+	service_type integer REFERENCES service_types,
+	house_id integer REFERENCES addr_houses,
+	street_guid varchar(36) REFERENCES addr_fias(guid),
+	house_number varchar(10),
+	phone varchar(10) CHECK(phone SIMILAR TO '[0-9]{10}'),
+	time_created timestamp NOT NULL DEFAULT now(),
+	time_completed timestamp
+);
 
 -- system.user_contact_types
 
