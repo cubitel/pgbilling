@@ -21,3 +21,4 @@ ADD_SUBDIRECTORY(ws-server)
 
 install(DIRECTORY www/ DESTINATION www)
 install(FILES ws-server/wsproto.proto DESTINATION www/cabinet)
+install(FILES ws-server/wsproto.proto DESTINATION www/admin)

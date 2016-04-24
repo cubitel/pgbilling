@@ -1,0 +1,42 @@
+
+.page-header {
+	font-size: 18px;
+}
+
+.balance {
+	font-size: 27px;
+	float: right;
+}
+
+.balance-desc {
+	clear: both;
+	text-align: right;
+}
+
+
+.buttons {
+	margin-top: 10px;
+}
+
+.button {
+	color: #27ae60;
+	text-decoration: none;
+	border: 0;
+	padding: 4px;
+}
+
+.button:Hover {
+	color: #27ae60;
+	border: 1px solid #ccc;
+	border-radius: 3px;
+	background-color: #eee;
+	padding: 3px;
+}
+
+.service-state-1 {
+	color: #3a6;
+}
+
+.service-state-2 {
+	color: #a36;
+}
