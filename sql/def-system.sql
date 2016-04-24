@@ -124,6 +124,28 @@ CREATE TABLE IF NOT EXISTS addr_connected (
 
 COMMENT ON TABLE addr_connected IS 'Зона охвата';
 
+-- system.devices
+
+CREATE TABLE IF NOT EXISTS devices (
+	device_id serial PRIMARY KEY,
+	device_ip inet NOT NULL,
+	device_mac macaddr,
+	snmp_community varchar(16)
+);
+
+COMMENT ON TABLE devices IS 'Сетевые устройства';
+
+-- system.device_ports
+
+CREATE TABLE IF NOT EXISTS device_ports (
+	port_id serial PRIMARY KEY,
+	device_id integer NOT NULL REFERENCES devices,
+	snmp_index integer NOT NULL,
+	port_name varchar(32) NOT NULL
+);
+
+COMMENT ON TABLE device_ports IS 'Порты сетевых устройств';
+
 -- system.tarifs
 
 CREATE TABLE IF NOT EXISTS tarifs (
@@ -211,11 +233,14 @@ CREATE TABLE IF NOT EXISTS services (
     mac_address macaddr,
     house_id integer REFERENCES addr_houses,
     flat_number integer,
+    serial_no varchar(32),
+    port_id integer REFERENCES device_ports ON DELETE SET NULL,
     CHECK(service_type != 1 OR service_state != 1 OR (inet_speed IS NOT NULL AND inet_speed > 0))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS services_mac ON services (mac_address);
 CREATE UNIQUE INDEX IF NOT EXISTS services_name ON services(service_name, service_type);
+CREATE UNIQUE INDEX IF NOT EXISTS services_serial_no ON services (serial_no);
 
 COMMENT ON TABLE services IS 'Услуги';
 COMMENT ON COLUMN services.service_id IS 'Идентификатор услуги';

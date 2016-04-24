@@ -62,7 +62,8 @@ CREATE OR REPLACE VIEW services AS
         array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
         house_id,
         flat_number,
-        service_pass
+        service_pass,
+        serial_no
     FROM system.services;
 
 CREATE OR REPLACE FUNCTION services_add_ip(n_service_id integer, n_address inet) RETURNS void AS $$
