@@ -7,6 +7,7 @@ message ClientMessage {
 	optional uint32 sequence = 1;
 	optional LoginRequest loginrequest = 2;
 	optional SelectRequest selectrequest = 3;
+	optional FunctionRequest functionrequest = 4;
 }
 
 message LoginRequest {
@@ -16,6 +17,16 @@ message LoginRequest {
 
 message SelectRequest {
 	required string table = 1;
+}
+
+message FunctionParam {
+	optional string s = 1;
+	optional int32 i = 2;
+}
+
+message FunctionRequest {
+	required string name = 1;
+	repeated FunctionParam params = 2;
 }
 
 /* Server messages */

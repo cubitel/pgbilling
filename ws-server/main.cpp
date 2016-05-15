@@ -82,7 +82,7 @@ static void sendMessage(WsServer& server, shared_ptr<WsServer::Connection> conne
  */
 static void checkRelationName(std::string& name)
 {
-	if (boost::regex_match(name, boost::regex("[[^:alnum:]]"))) {
+	if (boost::regex_match(name, boost::regex("[[^:alnum:_]]"))) {
 		throw std::runtime_error("Invalid characters in relation name.");
 	}
 }
@@ -124,6 +124,45 @@ static void processMessage(WsServer& server, Client& client,
 		std::string sql = "SELECT * FROM " + table;
 		
 		auto sqlres = trn.exec(sql);
+		trn.commit();
+		
+		auto sqlresp = resp.mutable_selectresponse();
+		for (unsigned int i = 0; i < sqlres.size(); i++) {
+			const auto row = sqlres[i];
+			for (unsigned int c = 0; c < row.size(); c++) {
+				if (i == 0) {
+					sqlresp->add_columns(row[c].name());
+				}
+				std::string s;
+				row[c].to(s);
+				sqlresp->add_data(s);
+			}
+		}
+	}
+
+	if (req.has_functionrequest()) {
+		pqxx::work trn(*client.psql);
+		
+		std::string name = req.functionrequest().name();
+		checkRelationName(name);
+
+		std::string sql = "SELECT " + name + "(";
+		for (int i = 1; i <= req.functionrequest().params_size(); i++) {
+			if (i > 1) sql += ", ";
+			sql += "$" + std::to_string(i);
+		}
+		sql += ")";
+		client.psql->prepare("func", sql);
+		
+		auto stmt = trn.prepared("func");
+		
+		for (int i = 0; i < req.functionrequest().params_size(); i++) {
+			auto param = req.functionrequest().params(i);
+			if (param.has_s()) stmt(param.s());
+			if (param.has_i()) stmt(param.i());
+		}
+		
+		auto sqlres = stmt.exec();
 		trn.commit();
 		
 		auto sqlresp = resp.mutable_selectresponse();
