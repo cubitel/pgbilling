@@ -58,6 +58,15 @@ function switchToMainView()
 				label: "Личный кабинет"
 			},{},{
 				view: "button",
+				id: "userFullName",
+				type: "icon",
+				icon: "angle-down",
+				label: "Пользователь",
+				width: 150,
+				click: function() {
+				}
+			},{
+				view: "button",
 				type: "icon",
 				icon: "sign-out",
 				label: "Выход",
@@ -239,6 +248,27 @@ function doAccountPay(account)
 	webix.UIManager.setFocus($$("yandexForm"));
 }
 
+function doAccountPromise(account_id)
+{
+	webix.confirm({
+		title: "Обещанный платеж",
+		ok: "Да",
+		cancel: "Нет",
+		text: "Отправить заявку на обещанный платеж?",
+		callback: function(result) {
+			if (!result) return;
+			wsSendMessage({
+				functionrequest: {
+					name: 'account_promise_payment',
+					params: [{i: parseInt(account_id)}]
+				}
+			}, function(resp) {
+				webix.alert("Ваша заявка на обещанный платеж зарегистрирована.");
+			});
+		}
+	});
+}
+
 function init()
 {
 	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
@@ -310,6 +340,7 @@ function init()
 									"<div class='balance-desc'>Баланс, руб.</div>" +
 									"<div class='buttons'>" +
 									"<a class='button' href='javascript:doAccountPay(\"" + data.account_number + "\");'><span class='webix_icon fa-plus'></span>Пополнить счет</a>" +
+									"<a class='button' href='javascript:doAccountPromise(\"" + data.account_id + "\");'><span class='webix_icon fa-plus-square'></span>Обещанный платеж</a>" +
 									"</div>";
 								return html;
 							}
