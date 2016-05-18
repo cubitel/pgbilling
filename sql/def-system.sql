@@ -282,13 +282,13 @@ INSERT INTO task_status_names (task_status, task_status_name) VALUES(5, 'Оши�
 
 CREATE TABLE IF NOT EXISTS tasks (
     task_id serial PRIMARY KEY,
-    system_id integer NOT NULL,
+    system_id integer NOT NULL DEFAULT 1,
     user_id integer REFERENCES users ON DELETE CASCADE,
     account_id integer REFERENCES accounts ON DELETE CASCADE,
     service_id integer REFERENCES services ON DELETE CASCADE,
     tarif_id integer REFERENCES tarifs ON DELETE CASCADE,
     task_name varchar(128) NOT NULL,
-    task_params varchar(128) NOT NULL,
+    task_params varchar(128),
     task_status integer NOT NULL REFERENCES task_status_names DEFAULT 1,
     time_created timestamp NOT NULL DEFAULT now(),
     time_completed timestamp
