@@ -106,23 +106,13 @@ CREATE TABLE IF NOT EXISTS addr_houses (
 	house_id serial PRIMARY KEY,
 	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
 	house_number varchar(10) NOT NULL,
-	location geometry(Point, 4326)
+	location geometry(Point, 4326),
+	house_state integer NOT NULL DEFAULT 1
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS house_numbers ON addr_houses(street_guid, house_number);
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
-
--- system.addr_connected
-
-CREATE TABLE IF NOT EXISTS addr_connected (
-	record_id serial PRIMARY KEY,
-	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
-	odd_min integer NOT NULL,
-	odd_max integer NOT NULL,
-	even_min integer NOT NULL,
-	even_max integer NOT NULL
-);
-
-COMMENT ON TABLE addr_connected IS 'Зона охвата';
 
 -- system.devices
 
