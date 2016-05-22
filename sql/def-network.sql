@@ -4,7 +4,12 @@
 
 SET SCHEMA 'network';
 
--- GRANT to network
+-- network.addr_houses
+
+CREATE OR REPLACE VIEW addr_houses AS
+    SELECT *, system.services_get_addr(house_id, 0) AS postaddr FROM system.addr_houses;
+
+-- Functions
 
 CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
@@ -67,6 +72,8 @@ BEGIN
 	END LOOP;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- GRANT to network
 
 GRANT USAGE ON SCHEMA network TO network;
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA network TO network;

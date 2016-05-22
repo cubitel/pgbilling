@@ -24,11 +24,6 @@ CREATE OR REPLACE VIEW addr_fias AS
 CREATE OR REPLACE VIEW addr_houses AS
     SELECT * FROM system.addr_houses;
 
--- billing.addr_connected
-
-CREATE OR REPLACE VIEW addr_connected AS
-    SELECT * FROM system.addr_connected;
-
 -- billing.payments
 
 CREATE OR REPLACE VIEW payments AS

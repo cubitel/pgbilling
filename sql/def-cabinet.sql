@@ -61,6 +61,39 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION user_change_password(vc_pass varchar) RETURNS integer AS $$
+DECLARE
+    m_user_id integer;
+BEGIN
+	SELECT user_id INTO m_user_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	UPDATE system.users SET pass = vc_pass WHERE user_id = m_user_id;
+	INSERT INTO system.tasks (user_id, task_name, task_params) VALUES(m_user_id, 'userChangePassword', vc_pass);
+
+    RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION account_promise_payment(n_account_id integer) RETURNS integer AS $$
+DECLARE
+	m_user_id integer;
+BEGIN
+	SELECT user_id INTO m_user_id FROM system.accounts
+		WHERE user_id IN (SELECT user_id FROM sessions)
+		AND account_id = n_account_id;
+	IF NOT FOUND THEN
+		RETURN 0;
+	END IF;
+
+	INSERT INTO system.tasks (task_name, user_id, account_id) VALUES('accountPromisePayment', m_user_id, n_account_id);
+
+	RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- GRANT TO cabinet
 
 GRANT USAGE ON SCHEMA cabinet TO cabinet;

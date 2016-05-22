@@ -106,23 +106,13 @@ CREATE TABLE IF NOT EXISTS addr_houses (
 	house_id serial PRIMARY KEY,
 	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
 	house_number varchar(10) NOT NULL,
-	location geometry(Point, 4326)
+	location geometry(Point, 4326),
+	house_state integer NOT NULL DEFAULT 1
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS house_numbers ON addr_houses(street_guid, house_number);
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
-
--- system.addr_connected
-
-CREATE TABLE IF NOT EXISTS addr_connected (
-	record_id serial PRIMARY KEY,
-	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
-	odd_min integer NOT NULL,
-	odd_max integer NOT NULL,
-	even_min integer NOT NULL,
-	even_max integer NOT NULL
-);
-
-COMMENT ON TABLE addr_connected IS 'Зона охвата';
 
 -- system.devices
 
@@ -282,13 +272,13 @@ INSERT INTO task_status_names (task_status, task_status_name) VALUES(5, 'Оши�
 
 CREATE TABLE IF NOT EXISTS tasks (
     task_id serial PRIMARY KEY,
-    system_id integer NOT NULL,
+    system_id integer NOT NULL DEFAULT 1,
     user_id integer REFERENCES users ON DELETE CASCADE,
     account_id integer REFERENCES accounts ON DELETE CASCADE,
     service_id integer REFERENCES services ON DELETE CASCADE,
     tarif_id integer REFERENCES tarifs ON DELETE CASCADE,
     task_name varchar(128) NOT NULL,
-    task_params varchar(128) NOT NULL,
+    task_params varchar(128),
     task_status integer NOT NULL REFERENCES task_status_names DEFAULT 1,
     time_created timestamp NOT NULL DEFAULT now(),
     time_completed timestamp
