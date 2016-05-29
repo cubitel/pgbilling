@@ -9,7 +9,7 @@ SET SCHEMA 'system';
 CREATE TABLE IF NOT EXISTS users (
     user_id serial PRIMARY KEY,
     user_name varchar(128) NOT NULL,
-    login_type integer NOT NULL,
+    login_type integer NOT NULL DEFAULT 1,
     login varchar(64) NOT NULL,
     pass varchar(64),
     totp_key varchar(128),
@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS addr_fias (
 	postal_code varchar(6) NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS addr_fias_parent_guid ON addr_fias(parent_guid);
+
 COMMENT ON TABLE addr_fias IS 'Каталог адресов по ФИАС';
 
 -- system.addr_fias_houses
@@ -135,6 +137,15 @@ CREATE TABLE IF NOT EXISTS device_ports (
 );
 
 COMMENT ON TABLE device_ports IS 'Порты сетевых устройств';
+
+-- system.divisions
+
+CREATE TABLE IF NOT EXISTS divisions (
+	division_id serial PRIMARY KEY,
+	division_name varchar(128) NOT NULL
+);
+
+COMMENT ON TABLE divisions IS 'Отделы предприятия';
 
 -- system.tarifs
 
@@ -298,6 +309,11 @@ CREATE TABLE IF NOT EXISTS ticket_statuses (
 );
 
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(1, 'Новая') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(2, 'Проверка возможности подключения') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(3, 'В работе') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(4, 'Выполнена') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(5, 'Отказ оператора') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(6, 'Отказ абонента') ON CONFLICT DO NOTHING;
 
 -- system.ticket_types
 
@@ -307,6 +323,7 @@ CREATE TABLE IF NOT EXISTS ticket_types (
 );
 
 INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(1, 'Подключение услуги') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(2, 'Отключение услуги') ON CONFLICT DO NOTHING;
 
 -- system.tickets
 
@@ -322,7 +339,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 	house_number varchar(10),
 	phone varchar(10) CHECK(phone SIMILAR TO '[0-9]{10}'),
 	time_created timestamp NOT NULL DEFAULT now(),
-	time_completed timestamp
+	time_completed timestamp,
+	division_id integer REFERENCES divisions
 );
 
 -- system.user_contact_types

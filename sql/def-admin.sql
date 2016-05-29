@@ -41,6 +41,19 @@ BEGIN
 
     GRANT SELECT ON services TO admin;
 
+	CREATE TEMPORARY VIEW tickets AS
+		SELECT tickets.*,
+			ticket_type_name,
+			ticket_status_name,
+			addr_fias.off_name AS street_name
+		FROM system.tickets
+		LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
+		LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status
+		LEFT JOIN system.addr_fias ON addr_fias.guid = tickets.street_guid
+		WHERE time_completed IS NULL;
+
+	GRANT SELECT ON tickets TO admin;
+
     RETURN 1;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;

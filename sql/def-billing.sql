@@ -106,6 +106,17 @@ CREATE OR REPLACE RULE tasks_delete AS
     ON DELETE TO tasks
     DO INSTEAD NOTHING;
 
+-- billing.tickets
+
+CREATE OR REPLACE VIEW tickets AS
+    SELECT tickets.*,
+    	ticket_type_name,
+    	ticket_status_name
+    FROM system.tickets
+    LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
+    LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status
+    WHERE division_id = 1 AND time_completed IS NULL;
+
 -- billing.users
 
 CREATE OR REPLACE VIEW users AS
@@ -141,3 +152,4 @@ CREATE OR REPLACE VIEW user_contacts AS
 
 GRANT USAGE ON SCHEMA billing TO billing;
 GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA billing TO billing;
+GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA system TO billing;

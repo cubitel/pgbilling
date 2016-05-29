@@ -55,19 +55,22 @@ BEGIN
 		RETURN NEXT;
 	END LOOP;
 
+	id := 0;
+	op := ':=';
+	username := vc_username;
+	attribute := 'Service-Type';
+	value := 'Framed-User';
+	RETURN NEXT;
+	
+	attribute := 'Class';
+	value := m_service.service_id::varchar;
+	RETURN NEXT;
+
 	FOR m_ip IN SELECT ip_address FROM system.services_addr WHERE service_id = m_service.service_id
 		AND family(ip_address) = 4
 	LOOP
-		id := 0;
-		op := ':=';
-		username := vc_username;
-
 		attribute := 'Framed-IP-Address';
 		value := m_ip;
-		RETURN NEXT;
-		
-		attribute := 'Service-Type';
-		value := 'Framed-User';
 		RETURN NEXT;
 	END LOOP;
 END

@@ -37,6 +37,8 @@ BEGIN
 
     SELECT user_id INTO m_user_id FROM system.accounts WHERE account_id = m_account_id;
 
+	UPDATE system.accounts SET balance = balance + n_amount WHERE account_id = m_account_id;
+
     INSERT INTO system.payments
         (user_id, account_id, oper_time, amount, agent_id, agent_ref, descr)
         VALUES(m_user_id, m_account_id, NOW(), n_amount, n_agent_id, vc_agent_ref, vc_descr);
