@@ -340,7 +340,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 	phone varchar(10) CHECK(phone SIMILAR TO '[0-9]{10}'),
 	time_created timestamp NOT NULL DEFAULT now(),
 	time_completed timestamp,
-	division_id integer REFERENCES divisions
+	division_id integer REFERENCES divisions,
+	location geometry(Point, 4326)
 );
 
 -- system.user_contact_types
