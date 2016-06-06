@@ -401,3 +401,32 @@ BEGIN
 	RETURN m_address;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION generate_totp(secret bytea, t bigint) RETURNS char(6) AS $$
+DECLARE
+    buf bytea;
+    byte int;
+    hash bytea;
+    n int;
+    code int;
+BEGIN
+ -- Initialize a 64-bit buffer.
+    buf = E'\\x0000000000000000';
+ -- Write the time step to the buffer in big-endian format.
+    FOR i IN 0..7 LOOP
+        byte = t :: bit(8) :: int;
+        buf  = set_byte(buf, 7 - i, byte);
+        t    = t >> 8;
+    END LOOP;
+ -- Calculate the passcode.
+    hash = hmac(buf, secret, 'sha1');
+    n    = get_byte(hash, 19) & 15;
+    code = (((get_byte(hash, n + 0) & 127) << 24)|
+            ((get_byte(hash, n + 1) & 255) << 16)|
+            ((get_byte(hash, n + 2) & 255) << 08)|
+            ((get_byte(hash, n + 3) & 255) << 00)) % 1000000;
+ -- Return the passcode as a six-character string.
+    RETURN LPAD(code :: text, 6, '0');
+END;
+$$
+LANGUAGE plpgsql STRICT IMMUTABLE;
