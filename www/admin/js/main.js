@@ -83,7 +83,12 @@ function switchToMainView()
 					},
 					onAfterSelect: function(id) {
 						if (pages[id] != undefined) {
-							var pageui = webix.ui(pages[id].def, $$("panel"));
+							var tab = {
+								header: id,
+								close: true,
+								body: pages[id].def
+							};
+							var pageui = $$("panel").addView(tab);
 							pages[id].oncreate(pageui);
 						}
 					}
@@ -96,11 +101,19 @@ function switchToMainView()
 						id: "user-home",
 						value: "Главная",
 						icon: "home",
+					},{
+						id: "tickets",
+						value: "Заявки",
+						icon: "user-plus"
 					}]
 				}]
 			},{
 				id: "panel",
-				template: ""
+				view: "tabview",
+				cells: [{
+					header: "Главная",
+					body: {}
+				}]
 			}]
 		}]
 	});
@@ -233,7 +246,6 @@ function init()
 	});
 
 	var page = function(name, def, oncreate) {
-		def.id = "panel";
 		pages[name] = {name: name, def: def, oncreate: oncreate};
 	}
 	
@@ -249,6 +261,50 @@ function init()
 			rows: []
 		},{}]
 	}, function() {
+	});
+	
+	/* Tickets page */
+	
+	page("tickets", {
+		rows: [{
+			template: "<div class='page-header'>Заявки</div>",
+			autoheight: true
+		},{
+			view: "datatable",
+			id: "tickets-list",
+			columns: [{
+				map: '#ticket_id#',
+				header: "Номер"
+			},{
+				map: '#time_created#',
+				header: "Дата/время",
+				width: 170
+			},{
+				map: '#ticket_type_name#',
+				header: "Тип",
+				width: 200
+			},{
+				map: '#ticket_status_name#',
+				header: "Статус",
+				width: 200
+			},{
+				map: '#street_name#',
+				header: "Улица",
+				fillspace: true
+			},{
+				map: '#house_number#',
+				header: "Дом",
+				width: 70
+			}],
+			select: 'row'
+		}]
+	}, function() {
+		wsSendMessage({
+			selectrequest: {table: 'tickets'}
+		}, function(resp) {
+			var rows = parseSelectResponse(resp.selectresponse);
+			$$("tickets-list").parse(rows);
+		});
 	});
 	
 	/* Display login dialog */
