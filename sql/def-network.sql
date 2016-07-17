@@ -15,10 +15,29 @@ CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_remoteid varchar, v
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 DECLARE
 	m_password varchar;
+	m_circuitid varchar;
+	m_remoteid varchar;
 BEGIN
+	SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_remoteid;
+	SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO m_circuitid;
+
 	SELECT service_pass INTO m_password FROM system.services WHERE service_name = vc_username;
 	IF NOT FOUND THEN
-		RETURN;
+		SELECT  service_pass INTO m_password FROM system.services
+			LEFT JOIN system.device_ports ON services.port_id = device_ports.port_id
+			LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
+			WHERE devices.device_ip = m_remoteid::inet AND device_ports.port_name = m_circuitid;
+		IF NOT FOUND THEN
+			RETURN;
+		END IF;
+
+	    id := 1;
+	    username := vc_username;
+	    attribute := 'Auth-Type';
+	    value := 'Accept';
+	    op := ':=';
+	    RETURN NEXT;
+	    RETURN;
 	END IF;
 
     id := 1;
@@ -35,18 +54,29 @@ RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op
 DECLARE
 	m_service system.services%rowtype;
 	m_attr system.radius_attrs%rowtype;
+	m_circuitid varchar;
+	m_remoteid varchar;
 	m_ip inet;
 BEGIN
+	SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_remoteid;
+	SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO m_circuitid;
+
 	SELECT * INTO m_service FROM system.services WHERE service_name = vc_username;
 	IF NOT FOUND THEN
-		RETURN;
+		SELECT  * INTO m_service FROM system.services
+			LEFT JOIN system.device_ports ON services.port_id = device_ports.port_id
+			LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
+			WHERE devices.device_ip = m_remoteid::inet AND device_ports.port_name = m_circuitid;
+		IF NOT FOUND THEN
+			RETURN;
+		END IF;
 	END IF;
 
 	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state
 	LOOP
 		value := m_attr.attr_value;
 		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
-		SELECT replace(value, '{Bps}', (m_service.inet_speed * 128)::varchar) INTO value;
+		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
 
 		id := m_attr.attr_id;
 		username := vc_username;
@@ -60,7 +90,7 @@ BEGIN
 	username := vc_username;
 	attribute := 'Service-Type';
 	value := 'Framed-User';
-	RETURN NEXT;
+--	RETURN NEXT;
 	
 	attribute := 'Class';
 	value := m_service.service_id::varchar;
