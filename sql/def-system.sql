@@ -371,6 +371,56 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION account_get_next() RETURNS varchar AS $$
+DECLARE
+	m_account integer;
+	m_mod integer;
+BEGIN
+	SELECT MAX(left(account_number, 5)::integer) + 1 INTO m_account FROM accounts WHERE length(account_number) = 6;
+
+	m_mod = m_account % 11;
+	IF m_mod = 10 THEN
+		m_mod = 0;
+	END IF;
+
+	RETURN m_account::varchar || m_mod::varchar;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION create_subscriber() RETURNS varchar AS $$
+DECLARE
+	m_user_id integer;
+	m_account_id integer;
+	m_account_number varchar;
+BEGIN
+	SELECT account_get_next() INTO m_account_number;
+
+    INSERT INTO users (user_name, login_type, login, pass) VALUES(m_account_number, 1, m_account_number, m_account_number);
+    SELECT lastval() INTO m_user_id;
+
+    INSERT INTO accounts (user_id, account_number, balance) VALUES(m_user_id, m_account_number, 0);
+    SELECT lastval() INTO m_account_id;
+
+    RETURN m_account_number;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION create_subscriber_service(vc_account_number varchar, n_tarif_id integer, n_house_id integer, n_flat_number integer) RETURNS integer AS $$
+DECLARE
+	m_account accounts%rowtype;
+	m_service_id integer;
+BEGIN
+	SELECT * INTO m_account FROM accounts WHERE account_number = vc_account_number;
+
+	INSERT INTO services
+		(user_id, account_id, service_type, service_name, inet_speed, current_tarif, next_tarif, house_id, flat_number)
+		VALUES(m_account.user_id, m_account.account_id, 1, vc_account_number || '-1', 50000, n_tarif_id, n_tarif_id, n_house_id, n_flat_number);
+    SELECT lastval() INTO m_service_id;
+
+    RETURN m_service_id;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION services_get_addr(n_house_id integer, n_flat integer) RETURNS varchar AS $$
 DECLARE
 	m_address varchar;
