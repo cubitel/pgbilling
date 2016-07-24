@@ -387,7 +387,7 @@ BEGIN
 
 	m_guid := m_house.street_guid;
 	m_address := '';
-	FOR i IN 1..3 LOOP
+	FOR i IN 1..2 LOOP
 		SELECT * INTO m_fias FROM addr_fias WHERE guid = m_guid;
 		IF NOT FOUND THEN
 			EXIT;
@@ -397,6 +397,9 @@ BEGIN
 	END LOOP;
 	
 	m_address := m_address || 'д. ' || m_house.house_number;
+	IF n_flat IS NOT NULL THEN
+		m_address := m_address || ', кв. ' || n_flat;
+	END IF;
 
 	RETURN m_address;
 END
