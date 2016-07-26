@@ -91,9 +91,9 @@ BEGIN
 	attribute := 'Service-Type';
 	value := 'Framed-User';
 --	RETURN NEXT;
-	
+
 	attribute := 'Class';
-	value := m_service.service_id::varchar;
+	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
 	RETURN NEXT;
 
 	FOR m_ip IN SELECT ip_address FROM system.services_addr WHERE service_id = m_service.service_id
@@ -103,6 +103,42 @@ BEGIN
 		value := m_ip;
 		RETURN NEXT;
 	END LOOP;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION rad_acct(vc_type varchar, vc_nas varchar, vc_session_id varchar, vc_class varchar, vc_username varchar) RETURNS integer AS $$
+DECLARE
+	m_session_id bigint;
+	m_class varchar;
+	m_class_array varchar[];
+	m_service_id integer;
+BEGIN
+	SELECT convert_from(decode(vc_class, 'hex'), 'utf-8') INTO m_class;
+
+	m_service_id = NULL;
+	SELECT regexp_split_to_array(m_class, E'-') INTO m_class_array;
+	IF m_class_array[1] != '' THEN
+		m_service_id = m_class_array[1]::integer;
+	END IF;
+
+	IF vc_type = 'Start' THEN
+		INSERT INTO sessions (acct_session_id, nas_ip_address, class, service_id, username) VALUES(vc_session_id, vc_nas::inet, m_class, m_service_id, vc_username);
+	END IF;
+
+	IF vc_type = 'Interim-Update' THEN
+		SELECT session_id INTO m_session_id FROM sessions WHERE acct_session_id = vc_session_id AND active = 1;
+		IF FOUND THEN
+			UPDATE sessions SET update_time = now(), class = m_class WHERE session_id = m_session_id;
+		ELSE
+			INSERT INTO sessions (acct_session_id, nas_ip_address, class, service_id, username) VALUES(vc_session_id, vc_nas::inet, m_class, m_service_id, vc_username);
+		END IF;
+	END IF;
+
+	IF vc_type = 'Stop' THEN
+		UPDATE sessions SET active = 0, update_time = now() WHERE acct_session_id = vc_session_id AND active = 1;
+	END IF;
+
+	RETURN 1;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

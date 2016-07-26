@@ -116,13 +116,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS house_numbers ON addr_houses(street_guid, hous
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
 
+-- system.device_models
+
+CREATE TABLE IF NOT EXISTS device_models (
+	model_id serial PRIMARY KEY,
+	model_code varchar(64) NOT NULL,
+	model_name varchar(128) NOT NULL
+);
+
+-- system.networks
+
+CREATE TABLE IF NOT EXISTS networks (
+	network_id serial PRIMARY KEY,
+	network_addr inet NOT NULL,
+	addr_start inet NOT NULL,
+	addr_stop inet NOT NULL
+);
+
 -- system.devices
 
 CREATE TABLE IF NOT EXISTS devices (
 	device_id serial PRIMARY KEY,
 	device_ip inet NOT NULL,
 	device_mac macaddr,
-	snmp_community varchar(16)
+	snmp_community varchar(16),
+	network_id integer REFERENCES networks
 );
 
 COMMENT ON TABLE devices IS 'Сетевые устройства';
@@ -208,6 +226,7 @@ CREATE TABLE IF NOT EXISTS service_state_names (
 
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(1, 'Активно') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(2, 'Заблокировано') ON CONFLICT DO NOTHING;
+INSERT INTO service_state_names (service_state, service_state_name) VALUES(3, 'Новый') ON CONFLICT DO NOTHING;
 
 -- system.service_types
 
@@ -265,6 +284,22 @@ CREATE TABLE IF NOT EXISTS services_addr (
 );
 
 COMMENT ON TABLE services_addr IS 'IP адреса для услуг';
+
+-- system.sessions
+
+CREATE TABLE IF NOT EXISTS sessions (
+	session_id bigserial PRIMARY KEY,
+	acct_session_id varchar(64) NOT NULL,
+	nas_ip_address inet NOT NULL,
+	active integer NOT NULL DEFAULT 1,
+	create_time timestamp NOT NULL DEFAULT now(),
+	update_time timestamp NOT NULL DEFAULT now(),
+	class varchar(64) NOT NULL,
+	service_id integer REFERENCES services ON DELETE SET NULL,
+	username varchar(64) NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS sessions_acct_id ON sessions(acct_session_id);
 
 -- system.task_status_names
 
@@ -363,6 +398,15 @@ CREATE TABLE IF NOT EXISTS user_contacts (
 	CHECK(contact_type != 1 OR (contact_value SIMILAR TO '[0-9]{10}'))
 );
 
+-- system.user_devices
+
+CREATE TABLE IF NOT EXISTS user_devices (
+	device_id serial PRIMARY KEY,
+	model_id integer NOT NULL REFERENCES device_models,
+	serial_no varchar(32) NOT NULL,
+	service_id integer REFERENCES services
+);
+
 -- Functions
 
 CREATE OR REPLACE FUNCTION addr_set_location(n_house_id integer, n_lon float, n_lat float) RETURNS void AS $$
@@ -384,6 +428,18 @@ BEGIN
 	END IF;
 
 	RETURN m_account::varchar || m_mod::varchar;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_free_ip(ip_start inet, ip_stop inet) RETURNS inet AS $$
+DECLARE
+	m_ip inet;
+BEGIN
+	SELECT MAX(ip_address) + 1 INTO m_ip
+		FROM services_addr
+		WHERE ip_address >= ip_start AND ip_address <= ip_stop;
+
+	RETURN m_ip;
 END
 $$ LANGUAGE plpgsql;
 
