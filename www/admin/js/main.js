@@ -295,6 +295,14 @@ function init()
 				map: '#house_number#',
 				header: "Дом",
 				width: 70
+			},{
+				map: '#phone#',
+				header: "Телефон",
+				width: 150
+			},{
+				map: '#dist#',
+				header: "Расстояние",
+				width: 100
 			}],
 			select: 'row'
 		}]

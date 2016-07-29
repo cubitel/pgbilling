@@ -45,7 +45,8 @@ BEGIN
 		SELECT tickets.*,
 			ticket_type_name,
 			ticket_status_name,
-			addr_fias.off_name AS street_name
+			addr_fias.off_name || ' ' || addr_fias.short_name AS street_name,
+			(select round(ST_DistanceSphere(addr_houses.location, tickets.location)) AS dist from addr_houses order by dist limit 1)
 		FROM system.tickets
 		LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
 		LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status

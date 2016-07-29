@@ -116,6 +116,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS house_numbers ON addr_houses(street_guid, hous
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
 
+-- system.boxes
+
+CREATE TABLE IF NOT EXISTS boxes (
+	box_id serial PRIMARY KEY,
+	box_location geometry(Point, 4326),
+	port_count integer NOT NULL DEFAULT 0
+);
+
 -- system.device_models
 
 CREATE TABLE IF NOT EXISTS device_models (
