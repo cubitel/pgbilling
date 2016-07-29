@@ -274,6 +274,25 @@ COMMENT ON COLUMN services.current_tarif IS 'Идентификатор теку
 COMMENT ON COLUMN services.next_tarif IS 'Идентификатор следующего тарифного плана';
 COMMENT ON COLUMN services.inet_speed IS 'Ограничение скорости доступа в интернет в кбит/с';
 
+CREATE OR REPLACE FUNCTION services_after_update() RETURNS trigger AS $$
+DECLARE
+	m_session_id bigint;
+BEGIN
+	IF (NEW.service_state != OLD.service_state) OR (NEW.inet_speed != OLD.inet_speed) THEN
+		SELECT session_id INTO m_session_id FROM sessions WHERE service_id = NEW.service_id AND active = 1;
+		IF FOUND THEN
+			PERFORM pg_notify('radius_coa', m_session_id::text);
+		END IF;
+	END IF;
+	
+	RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_update ON services;
+CREATE TRIGGER after_update AFTER UPDATE ON services
+	FOR EACH ROW EXECUTE PROCEDURE services_after_update();
+
 -- system.services_addr
 
 CREATE TABLE IF NOT EXISTS services_addr (
