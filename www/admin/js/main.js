@@ -54,8 +54,37 @@ function switchToMainView()
 			view: "toolbar",
 			padding: 3,
 			elements: [{
-				view: "label",
-				label: "Кабинет оператора"
+				view: "menu",
+				autowidth: true,
+				data: [{
+					id: 'operator',
+					value: "Оператор",
+					submenu: [{
+						id: 'changePassword',
+						value: "Изменить пароль..."
+					}]
+				},{
+					id: 'users',
+					value: "Абоненты",
+					submenu: [{
+						id: 'tickets',
+						value: "Заявки"
+					},{
+						id: 'services',
+						value: "Услуги"
+					},{
+						id: 'sessions',
+						value: "Активные сессии"
+					},{
+						id: 'payments',
+						value: "Платежи"
+					}]
+				}],
+				on: {
+					onMenuItemClick: function(id) {
+						openPage(id);
+					}
+				}
 			},{},{
 				view: "button",
 				type: "icon",
@@ -68,48 +97,9 @@ function switchToMainView()
 			}]
 		},{
 			cols: [{
-				view: "tree",
-				id: "sidebar",
-				width: 200,
-				type: "menuTree2",
-				css: "menu",
-				activeTitle: true,
-				select: true,
-				on: {
-					onBeforeSelect: function(id) {
-						if(this.getItem(id).$count) {
-							return false;
-						}
-					},
-					onAfterSelect: function(id) {
-						if (pages[id] != undefined) {
-							var tab = {
-								header: id,
-								close: true,
-								body: pages[id].def
-							};
-							var pageui = $$("panel").addView(tab);
-							pages[id].oncreate(pageui);
-						}
-					}
-				},
-				data: [{
-					id: "user",
-					value: "Абонент",
-					open: true,
-					data: [{
-						id: "user-home",
-						value: "Главная",
-						icon: "home",
-					},{
-						id: "tickets",
-						value: "Заявки",
-						icon: "user-plus"
-					}]
-				}]
-			},{
 				id: "panel",
 				view: "tabview",
+				tabbar: { optionWidth: 250 },
 				cells: [{
 					header: "Главная",
 					body: {}
@@ -117,8 +107,6 @@ function switchToMainView()
 			}]
 		}]
 	});
-	
-	$$("sidebar").select("user-home");
 }
 
 function wsSendMessage(data, callback)
@@ -217,6 +205,27 @@ function doLogin()
 	wsCreate();
 }
 
+function initPage(id, name, def, oncreate)
+{
+	pages[id] = {id: id, name: name, def: def, oncreate: oncreate};
+}
+
+function openPage(id)
+{
+	if (pages[id] != undefined) {
+		if (pages[id].def != undefined) {
+			var tab = {
+				id: 'tab-' + id,
+				header: pages[id].name,
+				close: true,
+				body: pages[id].def
+			};
+			var pageui = $$("panel").addView(tab);
+		}
+		pages[id].oncreate(pageui);
+	}
+}
+
 function init()
 {
 	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
@@ -245,77 +254,6 @@ function init()
 		}
 	});
 
-	var page = function(name, def, oncreate) {
-		pages[name] = {name: name, def: def, oncreate: oncreate};
-	}
-	
-	/* Home page */
-	
-	page("user-home", {
-		rows: [{
-			template: "<div class='page-header'>Главная</div>",
-			autoheight: true
-		},{
-			type: "space",
-			id: "user-home-list",
-			rows: []
-		},{}]
-	}, function() {
-	});
-	
-	/* Tickets page */
-	
-	page("tickets", {
-		rows: [{
-			template: "<div class='page-header'>Заявки</div>",
-			autoheight: true
-		},{
-			view: "datatable",
-			id: "tickets-list",
-			columns: [{
-				map: '#ticket_id#',
-				header: "Номер",
-				width: 70
-			},{
-				map: '#time_created#',
-				header: "Дата",
-				width: 110
-			},{
-				map: '#ticket_type_name#',
-				header: "Тип",
-				width: 200
-			},{
-				map: '#ticket_status_name#',
-				header: "Статус",
-				width: 150
-			},{
-				map: '#street_name#',
-				header: "Улица",
-				fillspace: true
-			},{
-				map: '#house_number#',
-				header: "Дом",
-				width: 70
-			},{
-				map: '#phone#',
-				header: "Телефон",
-				width: 150
-			},{
-				map: '#dist#',
-				header: "Расстояние",
-				width: 100
-			}],
-			select: 'row'
-		}]
-	}, function() {
-		wsSendMessage({
-			selectrequest: {table: 'tickets'}
-		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
-			$$("tickets-list").parse(rows);
-		});
-	});
-	
 	/* Display login dialog */
 	switchToLoginView();
 };

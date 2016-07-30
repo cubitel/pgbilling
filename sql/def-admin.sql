@@ -20,26 +20,49 @@ BEGIN
     );
     INSERT INTO sessions (oper_id) VALUES(m_oper_id);
 
+
     CREATE TEMPORARY VIEW accounts AS
         SELECT * FROM system.accounts;
 
     GRANT SELECT ON accounts TO admin;
+
 
     CREATE TEMPORARY VIEW account_logs AS
         SELECT * FROM system.account_logs;
 
     GRANT SELECT ON account_logs TO admin;
 
+	CREATE TEMPORARY VIEW payments AS
+		SELECT payments.*, accounts.account_number
+		FROM system.payments
+		LEFT JOIN system.accounts ON accounts.account_id = payments.account_id;
+	
+	GRANT SELECT ON payments TO admin;
+
+
     CREATE TEMPORARY VIEW services AS
         SELECT services.*,
+        	service_state_name,
+        	t1.tarif_name,
+        	user_name,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
             services_get_addr(house_id, flat_number) AS postaddr
         FROM system.services
         LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
         LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif
-        LEFT JOIN system.tarifs AS t2 ON t2.tarif_id = services.next_tarif;
+        LEFT JOIN system.users ON users.user_id = services.user_id;
 
     GRANT SELECT ON services TO admin;
+
+
+	CREATE TEMPORARY VIEW radius_sessions AS
+		SELECT sessions.*, services.service_name
+		FROM system.sessions
+		LEFT JOIN system.services ON services.service_id = sessions.service_id
+		WHERE active = 1;
+
+	GRANT SELECT ON radius_sessions TO admin;
+
 
 	CREATE TEMPORARY VIEW tickets AS
 		SELECT tickets.*,
@@ -58,6 +81,22 @@ BEGIN
     RETURN 1;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION change_password(vc_pass varchar) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	UPDATE system.operators SET pass = md5(vc_pass) WHERE operator_id = m_oper_id;
+
+    RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 -- GRANT TO cabinet
 
