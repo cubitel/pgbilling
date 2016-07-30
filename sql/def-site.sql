@@ -48,6 +48,38 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION reg_get_info(in_ip_address inet) RETURNS TABLE(name varchar, value varchar) AS $$
+DECLARE
+	m_service_id integer;
+	m_service system.services%rowtype;
+	m_port system.device_ports%rowtype;
+	m_device system.devices%rowtype;
+BEGIN
+	SELECT service_id INTO m_service_id FROM system.services_addr WHERE ip_address = in_ip_address;
+	IF NOT FOUND THEN
+		RETURN;
+	END IF;
+	
+	SELECT * INTO m_service FROM system.services WHERE service_id = m_service_id;
+	IF m_service.service_state != 3 THEN
+		RETURN;
+	END IF;
+	
+	SELECT * INTO m_port FROM system.device_ports WHERE port_id = m_service.port_id;
+	SELECT * INTO m_device FROM system.devices WHERE device_id = m_port.device_id;
+	
+	name := 'service_id';
+	value := m_service_id::varchar;
+	RETURN NEXT;
+	name := 'device';
+	value := m_device.device_ip::varchar;
+	RETURN NEXT;
+	name := 'port';
+	value := m_port.port_name;
+	RETURN NEXT;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- GRANT
 
 GRANT USAGE ON SCHEMA site TO site;
