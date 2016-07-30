@@ -274,11 +274,12 @@ function init()
 			id: "tickets-list",
 			columns: [{
 				map: '#ticket_id#',
-				header: "Номер"
+				header: "Номер",
+				width: 70
 			},{
 				map: '#time_created#',
-				header: "Дата/время",
-				width: 170
+				header: "Дата",
+				width: 110
 			},{
 				map: '#ticket_type_name#',
 				header: "Тип",
@@ -286,7 +287,7 @@ function init()
 			},{
 				map: '#ticket_status_name#',
 				header: "Статус",
-				width: 200
+				width: 150
 			},{
 				map: '#street_name#',
 				header: "Улица",
