@@ -22,3 +22,8 @@ ADD_SUBDIRECTORY(ws-server)
 install(DIRECTORY www/ DESTINATION www)
 install(FILES ws-server/wsproto.proto DESTINATION www/cabinet)
 install(FILES ws-server/wsproto.proto DESTINATION www/admin)
+
+install(PROGRAMS api/api-server DESTINATION lib)
+install(FILES api/plugin.py DESTINATION lib)
+FILE(GLOB files "api/plugins/*.py")
+install(FILES ${files} DESTINATION lib/plugins)

@@ -1,0 +1,77 @@
+#!/usr/bin/python -Es
+
+import argparse
+import sys
+import ConfigParser
+from setproctitle import *
+from multiprocessing import Pool
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from eventlet.hubs import trampoline
+import plugin
+
+
+def workerInit(config_file):
+	setproctitle('api-server: worker process')
+
+	# Load and parse config file
+	config = ConfigParser.RawConfigParser()
+	config.read(config_file)
+
+	# Connect to database
+	db = psycopg2.connect(config.get("server", "database"))
+
+	try:
+		for p in plugin.Plugins:
+			p.OnWorkerInit(db, config)
+	except Exception as e:
+		print(e)
+		return e
+
+
+	return
+
+def workerProcess(cmd, data):
+	try:
+		for p in plugin.Plugins:
+			p.OnCommand(cmd, data)
+	except Exception as e:
+		print(e)
+		return e
+
+	return
+
+
+if __name__ == "__main__":
+	# Read command line arguments
+	parser = argparse.ArgumentParser(description = "Billing API server.")
+	parser.add_argument("--config", "-c", action = "store", type = str, default = "/opt/billing/etc/api.conf", help = "server config file")
+	args = parser.parse_args(sys.argv[1:])
+
+	# Load and parse config file
+	config = ConfigParser.RawConfigParser()
+	config.read(args.config)
+
+	setproctitle('api-server: master process')
+	
+	# Load plugins
+	plugin.LoadPlugins()
+	
+	# Spawn worker processes
+	pool = Pool(4, workerInit, [args.config]);
+
+	# Connect to database
+	db = psycopg2.connect(config.get("server", "database"))
+	db.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+
+	# Initialize plugins
+	for p in plugin.Plugins:
+		p.OnMainInit(db, config)
+
+	# Main event loop
+	while 1:
+		trampoline(db, read=True)
+		db.poll()
+		while db.notifies:
+			event = db.notifies.pop()
+			pool.apply_async(workerProcess, ("pgNotify", {'channel': event.channel, 'payload': event.payload}))
