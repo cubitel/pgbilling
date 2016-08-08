@@ -92,6 +92,22 @@ initPage("payments", "Платежи", {
 	}
 );
 
+/* Map */
+
+initPage("map", "Карта сети", {
+		rows: [{
+			template: "<div class='page-header'>Карта сети</div>",
+			autoheight: true
+		},{
+			view: "open-map",
+			id: "map",
+			zoom: 13,
+			center: [45.0404, 38.9781]
+		}]
+	}, function() {
+	}
+);
+
 
 /* Sessions page */
 
@@ -120,6 +136,19 @@ initPage("sessions", "Активные сессии", {
 				header: "Имя услуги",
 				fillspace: true,
 				sort: 'string'
+			},{
+				map: '#class#',
+				header: "Класс",
+				width: 150
+			},{
+				map: '#device_ip#',
+				header: "IP устройства",
+				width: 150,
+				sort: 'string'
+			},{
+				map: '#port_name#',
+				header: "Порт устройства",
+				width: 150
 			}],
 			select: 'row'
 		}]
@@ -160,6 +189,10 @@ initPage("services", "Услуги", {
 			},{
 				map: '#tarif_name#',
 				header: "Тариф",
+				width: 120,
+			},{
+				map: '#balance#',
+				header: "Баланс",
 				width: 120,
 			},{
 				map: '#user_name#',
@@ -210,7 +243,8 @@ initPage("tickets", "Заявки", {
 			},{
 				map: '#ticket_status_name#',
 				header: "Статус",
-				width: 150
+				width: 150,
+				sort: 'string'
 			},{
 				map: '#street_name#',
 				header: "Улица",

@@ -57,14 +57,12 @@ function switchToMainView()
 				view: "menu",
 				autowidth: true,
 				data: [{
-					id: 'operator',
 					value: "Оператор",
 					submenu: [{
 						id: 'changePassword',
 						value: "Изменить пароль..."
 					}]
 				},{
-					id: 'users',
 					value: "Абоненты",
 					submenu: [{
 						id: 'tickets',
@@ -78,6 +76,12 @@ function switchToMainView()
 					},{
 						id: 'payments',
 						value: "Платежи"
+					}]
+				},{
+					value: "Сеть",
+					submenu: [{
+						id: 'map',
+						value: "Карта сети"
 					}]
 				}],
 				on: {
