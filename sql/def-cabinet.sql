@@ -45,7 +45,7 @@ BEGIN
             next_tarif,
             t1.tarif_name AS current_tarif_name,
             t2.tarif_name AS next_tarif_name,
-            inet_speed,
+            services.inet_speed,
             mac_address,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
             services_get_addr(house_id, flat_number) AS postaddr

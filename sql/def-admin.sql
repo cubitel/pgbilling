@@ -46,11 +46,13 @@ BEGIN
         	t1.tarif_name,
         	user_name,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
-            services_get_addr(house_id, flat_number) AS postaddr
+            services_get_addr(house_id, flat_number) AS postaddr,
+            accounts.balance
         FROM system.services
         LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
         LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif
-        LEFT JOIN system.users ON users.user_id = services.user_id;
+        LEFT JOIN system.users ON users.user_id = services.user_id
+        LEFT JOIN system.accounts ON accounts.account_id = services.account_id;
 
     GRANT SELECT ON services TO admin;
 

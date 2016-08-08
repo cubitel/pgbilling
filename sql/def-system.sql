@@ -78,6 +78,25 @@ COMMENT ON COLUMN account_logs.oper_time IS 'Дата и время операц
 COMMENT ON COLUMN account_logs.amount IS 'Сумма операции';
 COMMENT ON COLUMN account_logs.descr IS 'Описание операции';
 
+CREATE OR REPLACE FUNCTION account_logs_change() RETURNS trigger AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		UPDATE accounts SET balance = balance + NEW.amount WHERE account_id = NEW.account_id;
+		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE accounts SET balance = balance + NEW.amount - OLD.amount WHERE account_id = NEW.account_id;
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+		UPDATE accounts SET balance = balance - OLD.amount WHERE account_id = NEW.account_id;
+		RETURN OLD;
+	END IF;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS change ON account_logs;
+CREATE TRIGGER change AFTER INSERT OR UPDATE OR DELETE ON account_logs
+	FOR EACH ROW EXECUTE PROCEDURE account_logs_change();
+
 -- system.addr_fias
 
 CREATE TABLE IF NOT EXISTS addr_fias (
@@ -179,7 +198,9 @@ CREATE TABLE IF NOT EXISTS tarifs (
     tarif_id serial PRIMARY KEY,
     group_id integer NOT NULL,
     tarif_name varchar(64) NOT NULL,
-    active integer NOT NULL DEFAULT 1
+    active integer NOT NULL DEFAULT 1,
+    abon numeric(10,2) NOT NULL DEFAULT 0,
+    inet_speed integer NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE tarifs IS 'Тарифные планы';
