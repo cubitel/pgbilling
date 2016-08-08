@@ -20,6 +20,7 @@ def workerInit(config_file):
 
 	# Connect to database
 	db = psycopg2.connect(config.get("server", "database"))
+	db.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
 	try:
 		for p in plugin.Plugins:
