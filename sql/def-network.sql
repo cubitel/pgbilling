@@ -9,6 +9,11 @@ SET SCHEMA 'network';
 CREATE OR REPLACE VIEW addr_houses AS
     SELECT *, system.services_get_addr(house_id, 0) AS postaddr FROM system.addr_houses;
 
+-- network.sessions
+
+CREATE OR REPLACE VIEW sessions AS
+	SELECT * FROM system.sessions;
+
 -- Functions
 
 CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
@@ -47,6 +52,44 @@ BEGIN
 	    value := 'Accept';
 	    op := ':=';
 	    RETURN NEXT;
+	END IF;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION rad_attrs(n_service_id integer)
+RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
+DECLARE
+	m_service system.services%rowtype;
+	m_attr system.radius_attrs%rowtype;
+	m_ip inet;
+BEGIN
+	SELECT * INTO m_service FROM system.services WHERE service_id = n_service_id;
+	IF NOT FOUND THEN
+		RETURN;
+	END IF;
+
+	id := 0;
+	op := ':=';
+	username := '';
+
+	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state
+	LOOP
+		attribute := m_attr.attr_name;
+		value := m_attr.attr_value;
+		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
+		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
+		RETURN NEXT;
+	END LOOP;
+
+	attribute := 'Class';
+	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
+	RETURN NEXT;
+
+	SELECT ip_address INTO m_ip FROM system.services_addr WHERE service_id = m_service.service_id AND family(ip_address) = 4;
+	IF FOUND THEN
+		attribute := 'Framed-IP-Address';
+		value := m_ip;
+		RETURN NEXT;
 	END IF;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -108,7 +151,7 @@ BEGIN
 	op := ':=';
 	username := vc_username;
 
-	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state
+	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state AND in_coa = 0
 	LOOP
 		attribute := m_attr.attr_name;
 		value := m_attr.attr_value;

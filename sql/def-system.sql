@@ -222,7 +222,8 @@ CREATE TABLE IF NOT EXISTS radius_attrs (
 	attr_id serial PRIMARY KEY,
 	service_state integer NOT NULL,
 	attr_name varchar(128) NOT NULL,
-	attr_value varchar(128) NOT NULL
+	attr_value varchar(128) NOT NULL,
+	in_coa integer NOT NULL DEFAULT 0
 );
 
 -- system.service_states
@@ -376,6 +377,7 @@ INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(3, 'В р
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(4, 'Выполнена') ON CONFLICT DO NOTHING;
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(5, 'Отказ оператора') ON CONFLICT DO NOTHING;
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(6, 'Отказ абонента') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(7, 'Подготовка') ON CONFLICT DO NOTHING;
 
 -- system.ticket_types
 
@@ -423,6 +425,49 @@ CREATE TABLE IF NOT EXISTS user_contacts (
 	contact_type integer NOT NULL REFERENCES user_contact_types,
 	contact_value varchar(128) NOT NULL
 	CHECK(contact_type != 1 OR (contact_value SIMILAR TO '[0-9]{10}'))
+);
+
+-- system.user_doc_types
+
+CREATE TABLE IF NOT EXISTS user_doc_types (
+	doc_type integer PRIMARY KEY,
+	doc_type_name varchar(128) NOT NULL
+);
+
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(1, 'Паспорт гражданина СССР') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(2, 'Загранпаспорт гражданина СССР') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(3, 'Свидетельство о рождении') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(4, 'Удостоверение личности') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(5, 'Справка об освобождении') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(6, 'Паспорт Минморфлота') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(7, 'Военный билет') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(9, 'Дипломатический паспорт гражданина РФ') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(10, 'Иностранный паспорт') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(11, 'Свидетельство о регистрации ходатайства иммигранта о признании его беженцем') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(12, 'Вид на жительство') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(13, 'Удостоверение беженца') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(14, 'Временное удостоверение личности гражданина РФ') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(21, 'Паспорт гражданина РФ') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(22, 'Загранпаспорт гражданина РФ') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(23, 'Свидетельство о рождении, выданное уполномоченным органом иностранного государства') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(26, 'Паспорт моряка') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(27, 'Военный билет офицера запаса') ON CONFLICT DO NOTHING;
+INSERT INTO user_doc_types (doc_type, doc_type_name) VALUES(91, 'Иные документы, выдаваемые органами МВД') ON CONFLICT DO NOTHING;
+
+-- system.user_data
+
+CREATE TABLE IF NOT EXISTS user_data (
+	user_id integer PRIMARY KEY REFERENCES users,
+	namef varchar(128) NOT NULL,
+	namei varchar(128) NOT NULL,
+	nameo varchar(128) NOT NULL,
+	birthdate date NOT NULL,
+	birthplace varchar(256),
+	doc_type integer DEFAULT 21 REFERENCES user_doc_types,
+	doc_number varchar(128),
+	doc_date date,
+	doc_auth varchar(256),
+	doc_auth_code varchar(16)
 );
 
 -- system.user_devices

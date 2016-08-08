@@ -56,9 +56,11 @@ BEGIN
 
 
 	CREATE TEMPORARY VIEW radius_sessions AS
-		SELECT sessions.*, services.service_name
+		SELECT sessions.*, services.service_name, devices.device_ip, device_ports.port_name
 		FROM system.sessions
 		LEFT JOIN system.services ON services.service_id = sessions.service_id
+		LEFT JOIN system.device_ports ON device_ports.port_id = services.port_id
+		LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
 		WHERE active = 1;
 
 	GRANT SELECT ON radius_sessions TO admin;
