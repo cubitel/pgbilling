@@ -7,12 +7,27 @@ SET SCHEMA 'network';
 -- network.addr_houses
 
 CREATE OR REPLACE VIEW addr_houses AS
-    SELECT *, system.services_get_addr(house_id, 0) AS postaddr FROM system.addr_houses;
+    SELECT *, system.services_get_addr(house_id, NULL) AS postaddr FROM system.addr_houses;
+
+-- network.services
+
+CREATE OR REPLACE VIEW services AS
+	SELECT *, system.services_get_addr(house_id, flat_number) AS postaddr FROM system.services;
 
 -- network.sessions
 
 CREATE OR REPLACE VIEW sessions AS
 	SELECT * FROM system.sessions;
+
+-- network.users
+
+CREATE OR REPLACE VIEW users AS
+	SELECT * FROM system.users;
+
+-- network.user_data
+
+CREATE OR REPLACE VIEW user_data AS
+	SELECT * FROM system.user_data;
 
 -- Functions
 
@@ -220,4 +235,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- GRANT to network
 
 GRANT USAGE ON SCHEMA network TO network;
-GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA network TO network;
+GRANT SELECT ON ALL TABLES IN SCHEMA network TO network;

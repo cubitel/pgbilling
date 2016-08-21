@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     user_id integer NOT NULL REFERENCES users,
     account_number varchar(32) NOT NULL,
     balance numeric(10,2) NOT NULL,
+    time_created timestamp,
+    promised_end_date timestamp,
     UNIQUE(account_number)
 );
 
@@ -200,7 +202,8 @@ CREATE TABLE IF NOT EXISTS tarifs (
     tarif_name varchar(64) NOT NULL,
     active integer NOT NULL DEFAULT 1,
     abon numeric(10,2) NOT NULL DEFAULT 0,
-    inet_speed integer NOT NULL DEFAULT 0
+    inet_speed integer NOT NULL DEFAULT 0,
+    connect_price numeric(10,2) NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE tarifs IS 'Тарифные планы';
@@ -285,12 +288,16 @@ CREATE TABLE IF NOT EXISTS services (
     flat_number integer,
     serial_no varchar(32),
     port_id integer REFERENCES device_ports ON DELETE SET NULL,
+    user_port integer,
+    invoice_start timestamp,
+    invoice_end timestamp,
+    invoice_log_id integer REFERENCES account_logs(log_id),
     CHECK(service_type != 1 OR service_state != 1 OR (inet_speed IS NOT NULL AND inet_speed > 0))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS services_mac ON services (mac_address);
 CREATE UNIQUE INDEX IF NOT EXISTS services_name ON services(service_name, service_type);
-CREATE UNIQUE INDEX IF NOT EXISTS services_serial_no ON services (serial_no);
+CREATE UNIQUE INDEX IF NOT EXISTS services_serial_no ON services (serial_no, user_port);
 
 COMMENT ON TABLE services IS 'Услуги';
 COMMENT ON COLUMN services.service_id IS 'Идентификатор услуги';
@@ -303,6 +310,45 @@ COMMENT ON COLUMN services.service_state IS 'Состояние услуги';
 COMMENT ON COLUMN services.current_tarif IS 'Идентификатор текущего тарифного плана';
 COMMENT ON COLUMN services.next_tarif IS 'Идентификатор следующего тарифного плана';
 COMMENT ON COLUMN services.inet_speed IS 'Ограничение скорости доступа в интернет в кбит/с';
+
+CREATE OR REPLACE FUNCTION services_update_invoice(n_service_id integer) RETURNS void AS $$
+DECLARE
+	m_service services%rowtype;
+	m_account accounts%rowtype;
+	m_tarif tarifs%rowtype;
+	m_abon numeric(10,2);
+BEGIN
+	SELECT * INTO m_service FROM services WHERE service_id = n_service_id AND current_tarif IS NOT NULL;
+	IF NOT FOUND THEN
+		RETURN;
+	END IF;
+	
+	SELECT * INTO m_account FROM accounts WHERE account_id = m_service.account_id;
+	
+	IF m_service.invoice_start IS NOT NULL THEN
+		SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.current_tarif;
+		m_abon := m_tarif.abon * extract(epoch from (now() - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
+		UPDATE account_logs SET amount = - m_abon, oper_time = now() WHERE log_id = m_service.invoice_log_id;
+	END IF;
+	
+	IF m_service.invoice_start IS NULL THEN
+		-- Period closed, check if we can start new period
+		IF m_service.next_tarif IS NOT NULL THEN
+			SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.next_tarif;
+		ELSE
+			SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.current_tarif;
+		END IF;
+		
+		IF m_account.balance >= m_tarif.abon OR m_account.promised_end_date > now() THEN
+			INSERT INTO account_logs (user_id, account_id, oper_time, amount, descr)
+				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
+			UPDATE services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),
+				service_state = 1, inet_speed = m_tarif.inet_speed, current_tarif = m_tarif.tarif_id, next_tarif = NULL
+				WHERE service_id = m_service.service_id;
+		END IF;
+	END IF;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION services_after_update() RETURNS trigger AS $$
 DECLARE
@@ -426,7 +472,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 	time_created timestamp NOT NULL DEFAULT now(),
 	time_completed timestamp,
 	division_id integer REFERENCES divisions,
-	location geometry(Point, 4326)
+	location geometry(Point, 4326),
+	flat_number integer
 );
 
 -- system.user_contact_types
@@ -604,6 +651,16 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION generate_password() RETURNS varchar AS $$
+DECLARE
+	m_pass varchar;
+BEGIN
+	SELECT string_agg(substr('0123456789', ceil (random() * 10)::integer, 1), '') INTO m_pass
+	FROM generate_series(1, 6);
+	RETURN m_pass;
+END
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION generate_totp(secret bytea, t bigint) RETURNS char(6) AS $$
 DECLARE
     buf bytea;
@@ -632,3 +689,17 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql STRICT IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION cron_job() RETURNS void AS $$
+DECLARE
+	m_service_id integer;
+BEGIN
+	UPDATE sessions SET active = 0 WHERE active = 1 AND update_time < (now() - interval '1 hour');
+	
+	FOR m_service_id IN SELECT service_id FROM services WHERE current_tarif IS NOT NULL
+	LOOP
+		PERFORM services_update_invoice(m_service_id);
+	END LOOP;
+END;
+$$
+LANGUAGE plpgsql;

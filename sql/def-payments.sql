@@ -23,6 +23,7 @@ DECLARE
     m_account_id integer;
     m_user_id integer;
     m_payment_id integer;
+    m_service_id integer;
 BEGIN
     SELECT payments.payment_check(n_agent_id, vc_account_number) INTO m_account_id;
     IF m_account_id = 0 THEN
@@ -40,6 +41,11 @@ BEGIN
 	INSERT INTO system.account_logs
 		(user_id, account_id, oper_time, amount, descr)
 		VALUES(m_user_id, m_account_id, NOW(), n_amount, vc_descr);
+	
+	FOR m_service_id IN SELECT service_id FROM system.services WHERE account_id = m_account_id AND current_tarif IS NOT NULL
+	LOOP
+		PERFORM system.services_update_invoice(m_service_id);
+	END LOOP;
 
     INSERT INTO system.payments
         (user_id, account_id, oper_time, amount, agent_id, agent_ref, descr)

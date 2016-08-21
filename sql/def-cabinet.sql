@@ -71,7 +71,6 @@ BEGIN
     END IF;
 
 	UPDATE system.users SET pass = vc_pass WHERE user_id = m_user_id;
-	INSERT INTO system.tasks (user_id, task_name, task_params) VALUES(m_user_id, 'userChangePassword', vc_pass);
 
     RETURN 1;
 END
@@ -80,6 +79,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION account_promise_payment(n_account_id integer) RETURNS integer AS $$
 DECLARE
 	m_user_id integer;
+	m_service_id integer;
 BEGIN
 	SELECT user_id INTO m_user_id FROM system.accounts
 		WHERE user_id IN (SELECT user_id FROM sessions)
@@ -88,7 +88,12 @@ BEGIN
 		RETURN 0;
 	END IF;
 
-	INSERT INTO system.tasks (task_name, user_id, account_id) VALUES('accountPromisePayment', m_user_id, n_account_id);
+	UPDATE system.accounts SET promised_end_date = now() + interval '1 day' WHERE account_id = n_account_id;
+
+	FOR m_service_id IN SELECT service_id FROM system.services WHERE account_id = n_account_id AND current_tarif IS NOT NULL
+	LOOP
+		PERFORM system.services_update_invoice(m_service_id);
+	END LOOP;
 
 	RETURN 1;
 END
