@@ -193,11 +193,11 @@ initPage("services", "Услуги", {
 			},{
 				map: '#balance#',
 				header: "Баланс",
-				width: 120,
+				width: 100,
 			},{
 				map: '#user_name#',
 				header: "Абонент",
-				width: 180,
+				width: 220,
 			},{
 				map: '#postaddr#',
 				header: "Адрес оказания услуги",
@@ -253,6 +253,10 @@ initPage("tickets", "Заявки", {
 			},{
 				map: '#house_number#',
 				header: "Дом",
+				width: 70
+			},{
+				map: '#flat_number#',
+				header: "Кв",
 				width: 70
 			},{
 				map: '#phone#',

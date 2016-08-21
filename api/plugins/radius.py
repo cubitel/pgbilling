@@ -25,10 +25,8 @@ class RadiusPlugin(Plugin):
 				indata = "User-Name = " + session['username']
 				for attr in cur:
 					indata += ', ' + attr['attribute'] + ' := "' + attr['value'] + '"'
-				print(indata)
 				
 				p = Popen(['radclient', '-x', session['nas_ip_address'] +':3799', 'coa', self.secret], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 				res = p.communicate(input=indata)[0]
-				print(res.decode())
 
 		return

@@ -27,6 +27,5 @@ class SMSPlugin(Plugin):
 				url = url.replace("{message}", urllib.quote_plus(msg))
 				# do HTTP GET
 				resp = urllib2.urlopen(url).read()
-				print(resp)
 
 		return
