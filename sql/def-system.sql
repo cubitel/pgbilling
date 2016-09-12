@@ -313,36 +313,41 @@ COMMENT ON COLUMN services.inet_speed IS 'Ограничение скорост�
 
 CREATE OR REPLACE FUNCTION services_update_invoice(n_service_id integer) RETURNS void AS $$
 DECLARE
-	m_service services%rowtype;
-	m_account accounts%rowtype;
-	m_tarif tarifs%rowtype;
+	m_service system.services%rowtype;
+	m_account system.accounts%rowtype;
+	m_tarif system.tarifs%rowtype;
 	m_abon numeric(10,2);
 BEGIN
-	SELECT * INTO m_service FROM services WHERE service_id = n_service_id AND current_tarif IS NOT NULL;
+	SELECT * INTO m_service FROM system.services WHERE service_id = n_service_id AND current_tarif IS NOT NULL;
 	IF NOT FOUND THEN
 		RETURN;
 	END IF;
 	
-	SELECT * INTO m_account FROM accounts WHERE account_id = m_service.account_id;
+	SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
 	
 	IF m_service.invoice_start IS NOT NULL THEN
-		SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.current_tarif;
+		SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		m_abon := m_tarif.abon * extract(epoch from (now() - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
-		UPDATE account_logs SET amount = - m_abon, oper_time = now() WHERE log_id = m_service.invoice_log_id;
+		UPDATE system.account_logs SET amount = - m_abon, oper_time = now() WHERE log_id = m_service.invoice_log_id;
+		
+		IF extract(month from m_service.invoice_start) != extract(month from now()) THEN
+			-- New month: create new log line (set invoice_start to null to force it)
+			m_service.invoice_start := NULL;
+		END IF;
 	END IF;
 	
 	IF m_service.invoice_start IS NULL THEN
 		-- Period closed, check if we can start new period
 		IF m_service.next_tarif IS NOT NULL THEN
-			SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.next_tarif;
+			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.next_tarif;
 		ELSE
-			SELECT * INTO m_tarif FROM tarifs WHERE tarif_id = m_service.current_tarif;
+			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		END IF;
 		
-		IF m_account.balance >= m_tarif.abon OR m_account.promised_end_date > now() THEN
-			INSERT INTO account_logs (user_id, account_id, oper_time, amount, descr)
+		IF m_account.balance >= m_tarif.abon OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL THEN
+			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr)
 				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
-			UPDATE services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),
+			UPDATE system.services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),
 				service_state = 1, inet_speed = m_tarif.inet_speed, current_tarif = m_tarif.tarif_id, next_tarif = NULL
 				WHERE service_id = m_service.service_id;
 		END IF;
@@ -578,6 +583,10 @@ BEGIN
 	SELECT MAX(ip_address) + 1 INTO m_ip
 		FROM services_addr
 		WHERE ip_address >= ip_start AND ip_address <= ip_stop;
+
+	IF m_ip IS NULL THEN
+		RETURN ip_start;
+	END IF;
 
 	RETURN m_ip;
 END

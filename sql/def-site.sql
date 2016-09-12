@@ -214,7 +214,7 @@ BEGIN
 	UPDATE system.accounts SET account_number = m_account_number, time_created = now(), promised_end_date = now() + interval '3 days'
 		WHERE account_id = m_service.account_id;
 	
-	UPDATE system.users SET user_name = m_account_number, pass = m_password WHERE user_id = m_service.user_id;
+	UPDATE system.users SET login = m_account_number, pass = m_password WHERE user_id = m_service.user_id;
 	
 	UPDATE system.services SET service_name = m_account_number || '-1',
 		service_state = 1, inet_speed = m_tarif.inet_speed, current_tarif = n_tarif_id
