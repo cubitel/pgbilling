@@ -8,6 +8,7 @@ class RadiusPlugin(Plugin):
 
 	def OnMainInit(self, db, config):
 		db.cursor().execute("LISTEN radius_coa;")
+		db.cursor().execute("LISTEN radius_disconnect;")
 		return
 
 	def OnWorkerInit(self, db, config):
@@ -27,6 +28,15 @@ class RadiusPlugin(Plugin):
 					indata += ', ' + attr['attribute'] + ' := "' + attr['value'] + '"'
 				
 				p = Popen(['radclient', '-x', session['nas_ip_address'] +':3799', 'coa', self.secret], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+				res = p.communicate(input=indata)[0]
+
+			if data['channel'] == "radius_disconnect":
+				cur = self.db.cursor(cursor_factory=psycopg2.extras.DictCursor)
+				cur.execute("SELECT * FROM sessions WHERE session_id = %s;", (int(data['payload']), ))
+				session = cur.fetchone()
+				indata = "User-Name = " + session['username']
+				
+				p = Popen(['radclient', '-x', session['nas_ip_address'] +':3799', 'disconnect', self.secret], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 				res = p.communicate(input=indata)[0]
 
 		return
