@@ -1,0 +1,201 @@
+<html>
+<head>
+<title>Регистрация нового подключения</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<script type="text/javascript" src="jquery-1.4.3.min.js"></script>
+<script type="text/javascript">
+
+function showPage(pageId)
+{
+	document.getElementById('startup').style.display = 'none';
+	document.getElementById('error').style.display = 'none';
+	document.getElementById('step1').style.display = 'none';
+	document.getElementById('test').style.display = 'none';
+	document.getElementById('done').style.display = 'none';
+
+	document.getElementById(pageId).style.display = 'block';
+}
+
+$(function() {
+	$.post("/api.php?cmd=regGetInfo", {}, function(data) {
+		if (data.error) {
+			$("#errorText").text(data.error);
+			showPage('error');
+			return;
+		}
+		
+		if (data.test) {
+			showPage('test');
+			return;
+		}
+		
+		$("#devSerial").text(data.device.serial);
+		$("#devSignalDN").text(data.device.rssiDN);
+		$("#devSignalUP").text(data.device.rssiUP);
+		showPage('step1');
+	});
+});
+
+function doRegister()
+{
+	var ticket_id = $("#ticket_id").val();
+	var tarif = $("#tarif").val();
+	var namef = $("#namef").val();
+	var namei = $("#namei").val();
+	var nameo = $("#nameo").val();
+	var birthdate = $("#birthdate").val();
+	
+	do {
+		if (ticket_id == "") {
+			alert("Укажите номер заявки!");
+			return;
+		}
+		
+		if ( (namef == "") || (namei == "") ) {
+			alert("Укажите имя и фамилию!");
+			return;
+		}
+
+		if (birthdate == "") {
+			alert("Укажите дату рождения!");
+			return;
+		}
+
+		$.post("/api.php?cmd=regRegisterService", {
+			ticket_id: ticket_id,
+			tarif: tarif,
+			namef: namef,
+			namei: namei,
+			nameo: nameo,
+			birthdate: birthdate
+		}, function(data) {
+			if (data.error) {
+				$("#errorText").text(data.error);
+				showPage('error');
+					return;
+			}
+
+			$("#accountNumber").text(data.account_number);
+			$("#accountPassword").text(data.password);
+			showPage('done');
+		});
+	} while (0);
+}
+
+function doRegisterTest()
+{
+	var tarif = $("#tariftest").val();
+	
+	do {
+		$.post("/api.php?cmd=regRegisterTestService", {
+			tarif: tarif,
+		}, function(data) {
+			if (data.error) {
+				$("#errorText").text(data.error);
+				showPage('error');
+					return;
+			}
+
+			$("#accountNumber").text(data.account_number);
+			$("#accountPassword").text(data.password);
+			showPage('done');
+		});
+	} while (0);
+}
+
+</script>
+</head>
+<body>
+	<h3>Регистрация нового подключения.</h3>
+	
+	<div id="startup">
+		<div style="padding: 10px;">
+			Подождите, мы собираем информацию о подключении...
+		</div>
+	</div>
+	
+	<div id="error" style="display: none;">
+		<div id="errorText"></div>
+	</div>
+	
+	<div id="step1" style="display: none;">
+		<table width="100%" border="0" cellpadding="4" cellspacing="1">
+		<tr>
+			<td width="50%" valign="top">
+				Номер заявки:<br/>
+				<input id="ticket_id" /><br/>
+				<br/>
+				Тариф:<br/>
+				<select id="tarif">
+					<optgroup label="PON">
+						<option value="1">Тариф 1 (1300 р. / 90 Мбит/с)</option>
+						<option value="2">Тариф 2 (1500 р. / 200 Мбит/с)</option>
+					</optgroup>
+					<optgroup label="ETTH">
+						<option value="3">Тариф 1A (700 р. / 90 Мбит/с)</option>
+					</optgroup>
+				</select>
+				<br/>
+				Фамилия:<br/>
+				<input id="namef" /><br/>
+				<br/>
+				Имя:<br/>
+				<input id="namei" /><br/>
+				<br/>
+				Отчество:<br/>
+				<input id="nameo" /><br/>
+				<br/>
+				Дата рождения:<br/>
+				<input id="birthdate" /><br/>
+				<br/>
+				<div align="right"><input id="do_register" type="button" value=" Зарегистрировать " onclick="doRegister();" /></div>
+			</td>
+			<td valign="top">
+				Устройство: <span id="devSerial"></span><br/>
+				Уровень сигнала: <span id="devSignalDN"></span> дБм / <span id="devSignalUP"></span> дБм<br/>
+			</td>
+		</tr>
+		</table>
+	</div>
+
+	<div id="test" style="display: none;">
+		<div style="width: 50%;">
+			Уважаемый абонент!
+			Тестовый период пользования услугами доступа в Интернет закончился.
+			Для продолжения пользования нашими услугами необходимо выбрать тариф и оплатить подключение и абонентскую плату по выбранному тарифу.
+		</div>
+		<br/>
+		<div style="width: 50%;">
+			После нажатия кнопки "Зарегистрировать" вам будет присвоен номер договора и открыт доступ в Интернет.
+			Оплату необходимо произвести в течении трех дней.
+		</div>
+		<br/>
+		<div style="width: 50%;">
+			После присвоения номера договора с вами свяжутся наши сотрудники для подписания договора
+			в письменном виде.
+		</div>
+		<br/>
+		<div style="width: 50%;">
+			Тариф:<br/>
+			<select id="tariftest">
+				<option value="1">Тариф 1 (1300 р. / 90 Мбит/с)</option>
+				<option value="2">Тариф 2 (1500 р. / 200 Мбит/с)</option>
+			</select>
+			<br/>
+			<div align="right"><input id="do_register_test" type="button" value=" Зарегистрировать " onclick="doRegisterTest();" /></div>
+		</div>
+	</div>
+
+	<div id="done" style="display: none;">
+		Номер договора/Лицевого счета: <div style="padding: 10px;" id="accountNumber"></div>
+		Пароль в ЛК: <div style="padding: 10px;" id="accountPassword"></div>
+		<div style="padding: 10px;">
+			Регистрация завершена!
+			Вы можете выйти в Интернет.
+		</div>
+	</div>
+
+	<div style="padding: 10px; border-top: 1px solid #ccc; margin-top: 10px;">
+		Ваш оператор связи.
+	</div>
+</body>
