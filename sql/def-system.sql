@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS addr_houses (
 	house_id serial PRIMARY KEY,
 	street_guid varchar(36) NOT NULL REFERENCES addr_fias(guid),
 	house_number varchar(10) NOT NULL,
-	location geometry(Point, 4326),
+	location public.geometry(Point, 4326),
 	house_state integer NOT NULL DEFAULT 1
 );
 
@@ -141,7 +141,7 @@ COMMENT ON TABLE addr_houses IS 'Каталог домов';
 
 CREATE TABLE IF NOT EXISTS boxes (
 	box_id serial PRIMARY KEY,
-	box_location geometry(Point, 4326),
+	box_location public.geometry(Point, 4326),
 	port_count integer NOT NULL DEFAULT 0
 );
 
@@ -485,7 +485,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 	time_created timestamp NOT NULL DEFAULT now(),
 	time_completed timestamp,
 	division_id integer REFERENCES divisions,
-	location geometry(Point, 4326),
+	location public.geometry(Point, 4326),
 	flat_number integer
 );
 
