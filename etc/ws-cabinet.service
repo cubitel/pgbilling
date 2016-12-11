@@ -1,0 +1,12 @@
+[Unit]
+Description=Cabinet WebSocket server
+Wants=network.target
+Before=network.target network.service
+
+[Service]
+Type=simple
+ExecStart=/opt/billing/bin/ws-server -c /opt/billing/etc/cabinet.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

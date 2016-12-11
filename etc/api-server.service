@@ -1,0 +1,13 @@
+[Unit]
+Description=Billing API server
+Wants=network.target
+Before=network.target network.service
+
+[Service]
+Type=simple
+ExecStart=/opt/billing/lib/api-server
+WorkingDirectory=/opt/billing/lib
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
