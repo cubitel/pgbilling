@@ -215,7 +215,7 @@ function doLogin()
 
 function doAccountPay(account)
 {
-	webix.ui({
+	var win = webix.ui({
 		view: 'window',
 		hidden: false,
 		head: "Пополнить счет",
@@ -227,19 +227,26 @@ function doAccountPay(account)
 			width: 300,
 			elements: [
 				{view: 'text', label: 'Сумма платежа', labelPosition: 'top', name: 'sum'},
-				{
-					view: "button",
-					value: "Оплатить",
-					width: 150,
-					align: "center",
-					click: function() {
-						var p = $$("yandexForm").getValues();
-						p.customerNumber = account;
-						p.shopId = cfgYandexShopId;
-						p.scid = cfgYandexScid;
-						webix.send("https://money.yandex.ru/eshop.xml", p);
+				{margin: 5, cols: [
+					{
+						view: "button",
+						value: "Оплатить",
+						click: function() {
+							var p = $$("yandexForm").getValues();
+							p.customerNumber = account;
+							p.shopId = cfgYandexShopId;
+							p.scid = cfgYandexScid;
+							webix.send("https://money.yandex.ru/eshop.xml", p);
+						}
+					},
+					{
+						view: "button",
+						value: "Отмена",
+						click: function() {
+							win.close();
+						}
 					}
-				}
+				]}
 			]
 		}
 	});
