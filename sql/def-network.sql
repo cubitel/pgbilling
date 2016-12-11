@@ -109,18 +109,21 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION rad_parse_opt82(vc_remoteid varchar, vc_circuitid varchar, OUT n_device_id integer, OUT vc_port_number varchar) AS $$
 DECLARE
 	m_device varchar;
+	m_port_offset int;
 BEGIN
+	m_port_offset = 0;
+
 	IF substring(vc_remoteid from 1 for 4) = '0006' THEN
 		m_device = substring(vc_remoteid from 5 for 4) || '.' || substring(vc_remoteid from 9 for 4) || '.' || substring(vc_remoteid from 13 for 4);
-		SELECT device_id INTO n_device_id FROM system.devices WHERE device_mac = m_device::macaddr;
+		SELECT device_id, port_offset INTO n_device_id, m_port_offset FROM system.devices WHERE device_mac = m_device::macaddr;
 	ELSE
 		SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_device;
-		SELECT device_id INTO n_device_id FROM system.devices WHERE device_ip = m_device::inet;
+		SELECT device_id, port_offset INTO n_device_id, m_port_offset FROM system.devices WHERE device_ip = m_device::inet;
 	END IF;
 
 	IF substring(vc_circuitid from 1 for 4) = '0004' THEN
 		vc_port_number = substring(vc_circuitid from 11 for 2);
-		vc_port_number = CAST(CAST(('x' || CAST(vc_port_number AS text)) AS bit(8)) AS INT) + 1;
+		vc_port_number = CAST(CAST(('x' || CAST(vc_port_number AS text)) AS bit(8)) AS INT) + m_port_offset;
 	ELSE
 		SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO vc_port_number;
 	END IF;

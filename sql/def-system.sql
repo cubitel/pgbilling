@@ -169,7 +169,8 @@ CREATE TABLE IF NOT EXISTS devices (
 	device_ip inet NOT NULL,
 	device_mac macaddr,
 	snmp_community varchar(16),
-	network_id integer REFERENCES networks
+	network_id integer REFERENCES networks,
+	port_offset int NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE devices IS 'Сетевые устройства';
