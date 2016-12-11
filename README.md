@@ -14,12 +14,4 @@ _Build requirements_
 
 ### Installation instructions
 
-Full instructions coming soon.
-
-cmake .
-
-make && make install
-
-cd sql
-
-./update-db
+Full instructions is available on [our Wiki](http://npk.cubitel.org/wiki/pages/viewpage.action?pageId=4947973).
