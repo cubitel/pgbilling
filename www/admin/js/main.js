@@ -216,17 +216,22 @@ function initPage(id, name, def, oncreate)
 
 function openPage(id)
 {
+	var uid = webix.uid();
+
 	if (pages[id] != undefined) {
 		if (pages[id].def != undefined) {
+			var viewcfg = pages[id].def;
+			viewcfg.id = uid;
 			var tab = {
 				id: 'tab-' + id,
 				header: pages[id].name,
 				close: true,
-				body: pages[id].def
+				body: viewcfg
 			};
 			var pageui = $$("panel").addView(tab);
+			$$(viewcfg.id).show();
 		}
-		pages[id].oncreate(pageui);
+		pages[id].oncreate(pageui, uid);
 	}
 }
 

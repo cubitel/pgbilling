@@ -89,7 +89,7 @@ BEGIN
 		UPDATE accounts SET balance = balance + NEW.amount - OLD.amount WHERE account_id = NEW.account_id;
 		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
-		UPDATE accounts SET balance = balance - OLD.amount WHERE account_id = NEW.account_id;
+		UPDATE accounts SET balance = balance - OLD.amount WHERE account_id = OLD.account_id;
 		RETURN OLD;
 	END IF;
 END
@@ -329,7 +329,15 @@ BEGIN
 		SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		m_abon := m_tarif.abon * extract(epoch from (now() - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
 		UPDATE system.account_logs SET amount = - m_abon, oper_time = now() WHERE log_id = m_service.invoice_log_id;
-		
+
+		-- Get updated balance
+		SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
+
+		IF m_account.balance < 0 AND (m_account.promised_end_date < now() OR m_account.promised_end_date IS NULL) THEN
+			-- No money -- Close period
+			UPDATE system.services SET service_state = 2, invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
+		END IF;
+
 		IF extract(month from m_service.invoice_start) != extract(month from now()) THEN
 			-- New month: create new log line (set invoice_start to null to force it)
 			m_service.invoice_start := NULL;
@@ -360,7 +368,7 @@ DECLARE
 	m_session_id bigint;
 BEGIN
 	IF (NEW.service_state != OLD.service_state) OR (NEW.inet_speed != OLD.inet_speed) THEN
-		SELECT session_id INTO m_session_id FROM sessions WHERE service_id = NEW.service_id AND active = 1;
+		SELECT session_id INTO m_session_id FROM system.sessions WHERE service_id = NEW.service_id AND active = 1;
 		IF FOUND THEN
 			PERFORM pg_notify('radius_coa', m_session_id::text);
 		END IF;
@@ -650,7 +658,7 @@ BEGIN
 		m_address := m_fias.short_name || ' ' || m_fias.off_name || ', ' || m_address;
 		m_guid := m_fias.parent_guid;
 	END LOOP;
-	
+
 	m_address := m_address || 'д. ' || m_house.house_number;
 	IF n_flat IS NOT NULL THEN
 		m_address := m_address || ', кв. ' || n_flat;

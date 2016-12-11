@@ -4,152 +4,71 @@
 
 SET SCHEMA 'billing';
 
--- billing.accounts
-
-CREATE OR REPLACE VIEW accounts AS
-    SELECT * FROM system.accounts;
-
--- billing.account_logs
-
-CREATE OR REPLACE VIEW account_logs AS
-    SELECT * FROM system.account_logs;
-
--- billing.addr_fias
-
-CREATE OR REPLACE VIEW addr_fias AS
-    SELECT * FROM system.addr_fias;
-
--- billing.addr_houses
-
-CREATE OR REPLACE VIEW addr_houses AS
-    SELECT * FROM system.addr_houses;
-
--- billing.payments
-
-CREATE OR REPLACE VIEW payments AS
-    SELECT
-        payments.*,
-        payagents.agent_name,
-        accounts.account_number
-    FROM system.payments
-    LEFT JOIN system.payagents ON payagents.agent_id = payments.agent_id
-    LEFT JOIN system.accounts ON accounts.account_id = payments.account_id;
-
--- billing.service_state_names
-
-CREATE OR REPLACE VIEW service_state_names AS
-    SELECT * FROM system.service_state_names;
-
 -- billing.services
 
 CREATE OR REPLACE VIEW services AS
     SELECT
-        service_id,
-        user_id,
-        account_id,
-        service_type,
-        service_name,
-        service_state,
-        current_tarif,
-        next_tarif,
-        inet_speed,
-        mac_address,
-        array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
-        house_id,
-        flat_number,
-        service_pass,
-        serial_no
-    FROM system.services;
+        services.service_id,
+        services.service_type,
+        services.service_name,
+        accounts.time_created,
+        services.service_state,
+        services.current_tarif AS tarif,
+        tarifs.connect_price,
+        tarifs.abon,
+        tarifs.tarif_name,
+        services.inet_speed,
+        addr_houses.street_guid,
+        addr_houses.house_number,
+        services.flat_number,
+        system.services_get_addr(services.house_id, flat_number) AS postaddr,
+        services.serial_no,
+        array(SELECT contact_value FROM system.user_contacts WHERE user_contacts.user_id = services.user_id) AS contacts,
+        user_data.namef,
+        user_data.namei,
+        user_data.nameo,
+        user_data.birthdate,
+        user_data.birthplace,
+        user_data.doc_type,
+        user_data.doc_number,
+        user_data.doc_date,
+        user_data.doc_auth,
+        user_data.doc_auth_code
+    FROM system.services
+    LEFT JOIN system.accounts ON accounts.account_id = services.account_id
+    LEFT JOIN system.tarifs ON tarifs.tarif_id = services.current_tarif
+    LEFT JOIN system.addr_houses ON addr_houses.house_id = services.house_id
+    LEFT JOIN system.user_data ON user_data.user_id = services.user_id
+    WHERE services.current_tarif IS NOT NULL;
 
-CREATE OR REPLACE FUNCTION services_add_ip(n_service_id integer, n_address inet) RETURNS void AS $$
-BEGIN
-    INSERT INTO system.services_addr (service_id, ip_address) VALUES(n_service_id, n_address);
-END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE FUNCTION services_change_password(n_service_id integer, vc_pass varchar) RETURNS void AS $$
-BEGIN
-    UPDATE system.services SET service_pass = vc_pass WHERE service_id = n_service_id;
-END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE OR REPLACE FUNCTION services_remove_ip(n_service_id integer, n_address inet) RETURNS void AS $$
-BEGIN
-    DELETE FROM system.services_addr WHERE service_id = n_service_id AND ip_address = n_address;
-END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- billing.tarifs
-
-CREATE OR REPLACE VIEW tarifs AS
-    SELECT * FROM system.tarifs;
-
--- billing.task_status_names
-
-CREATE OR REPLACE VIEW task_status_names AS
-    SELECT * FROM system.task_status_names;
-
--- billing.tasks
-
-CREATE OR REPLACE VIEW tasks AS
-    SELECT * FROM system.tasks WHERE system_id = 1;
-
-CREATE OR REPLACE RULE tasks_insert AS
-    ON INSERT TO tasks
-    DO INSTEAD NOTHING;
-
-CREATE OR REPLACE RULE tasks_update AS
-    ON UPDATE TO tasks
-    DO INSTEAD UPDATE system.tasks SET task_status = NEW.task_status WHERE task_id = OLD.task_id;
-
-CREATE OR REPLACE RULE tasks_delete AS
-    ON DELETE TO tasks
-    DO INSTEAD NOTHING;
-
--- billing.tickets
-
-CREATE OR REPLACE VIEW tickets AS
-    SELECT tickets.*,
-    	ticket_type_name,
-    	ticket_status_name
-    FROM system.tickets
-    LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
-    LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status
-    WHERE division_id = 1 AND time_completed IS NULL;
-
--- billing.users
-
-CREATE OR REPLACE VIEW users AS
-    SELECT user_id, user_name, login, pass FROM system.users;
-
-COMMENT ON VIEW users IS 'Абоненты';
-COMMENT ON COLUMN users.user_id IS 'Идентификатор абонента';
-COMMENT ON COLUMN users.user_name IS 'Читабельное имя пользователя';
-COMMENT ON COLUMN users.login IS 'Логин абонента в ЛК';
-
-CREATE OR REPLACE RULE rule_users_delete AS
-    ON DELETE TO users
-    DO INSTEAD NOTHING;
-
-CREATE OR REPLACE FUNCTION users_change_password(n_user_id integer, vc_pass varchar) RETURNS void AS $$
-BEGIN
-    UPDATE system.users SET pass = vc_pass WHERE user_id = n_user_id;
-END
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- billing.user_contact_types
-
-CREATE OR REPLACE VIEW user_contact_types AS
-    SELECT * FROM system.user_contact_types;
-
--- billing.user_contacts
-
-CREATE OR REPLACE VIEW user_contacts AS
-    SELECT * FROM system.user_contacts;
-
+COMMENT ON COLUMN services.service_id IS 'Идентификатор услуги';
+COMMENT ON COLUMN services.service_type IS 'Тип услуги';
+COMMENT ON COLUMN services.service_name IS 'Имя услуги';
+COMMENT ON COLUMN services.time_created IS 'Время создания аккаунта';
+COMMENT ON COLUMN services.service_state IS 'Состояние услуги';
+COMMENT ON COLUMN services.tarif IS 'Идентификатор тарифа';
+COMMENT ON COLUMN services.connect_price IS 'Стоимость подключения';
+COMMENT ON COLUMN services.abon IS 'Абонентская плата';
+COMMENT ON COLUMN services.tarif_name IS 'Название тарифа';
+COMMENT ON COLUMN services.inet_speed IS 'Скорость доступа в интернет';
+COMMENT ON COLUMN services.street_guid IS 'Идентификатор улицы по ФИАС';
+COMMENT ON COLUMN services.house_number IS 'Номер дома';
+COMMENT ON COLUMN services.flat_number IS 'Номер квартиры';
+COMMENT ON COLUMN services.postaddr IS 'Адрес в текстовом виде';
+COMMENT ON COLUMN services.serial_no IS 'Серийный номер ONU';
+COMMENT ON COLUMN services.contacts IS 'Контактная информация';
+COMMENT ON COLUMN services.namef IS 'Фамилия';
+COMMENT ON COLUMN services.namei IS 'Имя';
+COMMENT ON COLUMN services.nameo IS 'Отчество';
+COMMENT ON COLUMN services.birthdate IS 'Дата рождения';
+COMMENT ON COLUMN services.birthplace IS 'Место рождения';
+COMMENT ON COLUMN services.doc_type IS 'Тип документа';
+COMMENT ON COLUMN services.doc_number IS 'Номер документа';
+COMMENT ON COLUMN services.doc_date IS 'Дата документа';
+COMMENT ON COLUMN services.doc_auth IS 'Орган, выдавший документ';
+COMMENT ON COLUMN services.doc_auth_code IS 'Код органа, выдавшего документ';
 
 -- GRANT to billing
 
 GRANT USAGE ON SCHEMA billing TO billing;
-GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA billing TO billing;
-GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA system TO billing;
+GRANT SELECT ON ALL TABLES IN SCHEMA billing TO billing;

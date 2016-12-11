@@ -35,8 +35,8 @@ CREATE OR REPLACE FUNCTION rad_check(vc_username varchar, vc_remoteid varchar, v
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 DECLARE
 	m_password varchar;
-	m_circuitid varchar;
-	m_remoteid varchar;
+	m_device_id integer;
+	m_port_number varchar;
 BEGIN
 	IF vc_remoteid = '' THEN
 		-- login/password scheme
@@ -53,11 +53,8 @@ BEGIN
 	    RETURN NEXT;
 	ELSE
 		-- option82 scheme
-		SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_remoteid;
-		SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO m_circuitid;
-
-		SELECT device_id::varchar INTO m_password FROM system.devices WHERE device_ip = m_remoteid::inet;
-		IF NOT FOUND THEN
+		SELECT * FROM network.rad_parse_opt82(vc_remoteid, vc_circuitid) INTO m_device_id, m_port_number;
+		IF m_device_id IS NULL THEN
 			RETURN;
 		END IF;
 
@@ -109,6 +106,27 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION rad_parse_opt82(vc_remoteid varchar, vc_circuitid varchar, OUT n_device_id integer, OUT vc_port_number varchar) AS $$
+DECLARE
+	m_device varchar;
+BEGIN
+	IF substring(vc_remoteid from 1 for 4) = '0006' THEN
+		m_device = substring(vc_remoteid from 5 for 4) || '.' || substring(vc_remoteid from 9 for 4) || '.' || substring(vc_remoteid from 13 for 4);
+		SELECT device_id INTO n_device_id FROM system.devices WHERE device_mac = m_device::macaddr;
+	ELSE
+		SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_device;
+		SELECT device_id INTO n_device_id FROM system.devices WHERE device_ip = m_device::inet;
+	END IF;
+
+	IF substring(vc_circuitid from 1 for 4) = '0004' THEN
+		vc_port_number = substring(vc_circuitid from 11 for 2);
+		vc_port_number = CAST(CAST(('x' || CAST(vc_port_number AS text)) AS bit(8)) AS INT) + 1;
+	ELSE
+		SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO vc_port_number;
+	END IF;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION rad_reply(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 DECLARE
@@ -116,10 +134,10 @@ DECLARE
 	m_attr system.radius_attrs%rowtype;
 	m_device system.devices%rowtype;
 	m_network system.networks%rowtype;
-	m_circuitid varchar;
-	m_remoteid varchar;
 	m_ip inet;
 	m_port_id integer;
+	m_device_id integer;
+	m_port_number varchar;
 BEGIN
 	IF vc_remoteid = '' THEN
 		-- login/password scheme
@@ -127,13 +145,19 @@ BEGIN
 		IF NOT FOUND THEN
 			RETURN;
 		END IF;
+
+		-- Get network attached to device
+		SELECT networks.* INTO m_network
+			FROM system.device_ports
+			LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
+			LEFT JOIN system.networks ON networks.network_id = devices.network_id
+			WHERE port_id = m_service.port_id;
 	ELSE
 		-- Option82 scheme
-		SELECT convert_from(decode(vc_remoteid, 'hex'), 'utf-8') INTO m_remoteid;
-		SELECT convert_from(decode(vc_circuitid, 'hex'), 'utf-8') INTO m_circuitid;
+		SELECT * FROM network.rad_parse_opt82(vc_remoteid, vc_circuitid) INTO m_device_id, m_port_number;
 
 		-- Find network device
-		SELECT * INTO m_device FROM system.devices WHERE device_ip = m_remoteid::inet;
+		SELECT * INTO m_device FROM system.devices WHERE device_id = m_device_id;
 		IF NOT FOUND THEN
 			RETURN;
 		END IF;
@@ -141,24 +165,24 @@ BEGIN
 		-- Find device port
 		SELECT * INTO m_service FROM system.services
 			LEFT JOIN system.device_ports ON services.port_id = device_ports.port_id
-			WHERE device_ports.device_id = m_device.device_id AND device_ports.port_name = m_circuitid;
+			WHERE device_ports.device_id = m_device.device_id AND device_ports.port_name = m_port_number;
 		IF NOT FOUND THEN
 			-- Create port if not exist
-			SELECT port_id INTO m_port_id FROM system.device_ports WHERE device_id = m_device.device_id AND port_name = m_circuitid;
+			SELECT port_id INTO m_port_id FROM system.device_ports WHERE device_id = m_device.device_id AND port_name = m_port_number;
 			IF NOT FOUND THEN
-				INSERT INTO system.device_ports (device_id, port_name, snmp_index) VALUES(m_device.device_id, m_circuitid, 0);
+				INSERT INTO system.device_ports (device_id, port_name, snmp_index) VALUES(m_device.device_id, m_port_number, 0);
 				SELECT lastval() INTO m_port_id;
 			END IF;
 			-- Create default service if not exist
 			INSERT INTO system.services (user_id, account_id, service_type, service_name, service_state, port_id, inet_speed)
-				VALUES(1, 1, 1, m_remoteid || ' / ' || m_circuitid, 3, m_port_id, 0);
+				VALUES(1, 1, 1, m_device.device_ip::varchar || '/' || m_port_number, 3, m_port_id, 0);
 			SELECT * INTO m_service FROM system.services WHERE port_id = m_port_id;
 			IF NOT FOUND THEN
 				RETURN;
 			END IF;
 		END IF;
 
-		-- Get networks attached to device
+		-- Get network attached to device
 		SELECT * INTO m_network FROM system.networks WHERE network_id = m_device.network_id;
 	END IF;
 

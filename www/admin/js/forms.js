@@ -105,6 +105,19 @@ initPage("map", "Карта сети", {
 			center: [45.0404, 38.9781]
 		}]
 	}, function() {
+		wsSendMessage({
+			selectrequest: {table: 'tickets'}
+		}, function(resp) {
+			var rows = parseSelectResponse(resp.selectresponse);
+			var map = $$("map").map;
+			for (var i in rows) {
+				var row = rows[i];
+				if (row.geopoint != "") {
+					var point = JSON.parse(row.geopoint);
+					L.marker([point.coordinates[1], point.coordinates[0]]).addTo(map).bindPopup(row.ticket_id + ': ' + row.street_name + ' ' + row.house_number);
+				}
+			}
+		});
 	}
 );
 
@@ -203,6 +216,10 @@ initPage("services", "Услуги", {
 				header: "Адрес оказания услуги",
 				fillspace: true,
 				sort: 'string'
+			},{
+				map: '#contacts#',
+				header: "Контакты",
+				width: 120,
 			}],
 			select: 'row'
 		}]

@@ -46,6 +46,7 @@ BEGIN
         	t1.tarif_name,
         	user_name,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
+            array(SELECT contact_value FROM system.user_contacts WHERE user_contacts.user_id = services.user_id) AS contacts,
             services_get_addr(house_id, flat_number) AS postaddr,
             accounts.balance
         FROM system.services
@@ -73,7 +74,8 @@ BEGIN
 			ticket_type_name,
 			ticket_status_name,
 			addr_fias.off_name || ' ' || addr_fias.short_name AS street_name,
-			(select round(ST_DistanceSphere(addr_houses.location, tickets.location)) AS dist from addr_houses order by dist limit 1)
+			(select round(ST_DistanceSphere(addr_houses.location, tickets.location)) AS dist from addr_houses order by dist limit 1),
+			ST_AsGeoJson(tickets.location) AS geopoint
 		FROM system.tickets
 		LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
 		LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status
