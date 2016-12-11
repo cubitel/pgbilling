@@ -6,7 +6,7 @@ DECLARE
     account_id integer;
     service_id integer;
 BEGIN
-	INSERT INTO operators (operator_name, login_type, login, pass) VALUES('Администратор', 1, 'admin', sha1('pgbilling'));
+	INSERT INTO operators (operator_name, login_type, login, pass) VALUES('Администратор', 1, 'admin', md5('pgbilling'));
 
     INSERT INTO users (user_name, login_type, login, pass) VALUES('Абонент', 1, 'test', '123');
     SELECT lastval() INTO user_id;
