@@ -52,8 +52,16 @@ initPage("changePassword", "Изменить пароль", undefined, function(
 
 initPage("payments", "Платежи", {
 		rows: [{
-			template: "<div class='page-header'>Платежи</div>",
-			autoheight: true
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
 		},{
 			view: "datatable",
 			id: "payments-list",
@@ -82,13 +90,24 @@ initPage("payments", "Платежи", {
 			}],
 			select: 'row'
 		}]
-	}, function() {
-		wsSendMessage({
-			selectrequest: {table: 'payments'}
-		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
-			$$("payments-list").parse(rows);
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'payments'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("payments-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("payment_id", "desc", "int");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
 		});
+
+		update();
 	}
 );
 
@@ -126,8 +145,16 @@ initPage("map", "Карта сети", {
 
 initPage("sessions", "Активные сессии", {
 		rows: [{
-			template: "<div class='page-header'>Активные сессии</div>",
-			autoheight: true
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
 		},{
 			view: "datatable",
 			id: "session-list",
@@ -165,13 +192,24 @@ initPage("sessions", "Активные сессии", {
 			}],
 			select: 'row'
 		}]
-	}, function() {
-		wsSendMessage({
-			selectrequest: {table: 'radius_sessions'}
-		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
-			$$("session-list").parse(rows);
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'radius_sessions'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("session-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("create_time", "desc", "string");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
 		});
+
+		update();
 	}
 );
 
@@ -180,8 +218,23 @@ initPage("sessions", "Активные сессии", {
 
 initPage("services", "Услуги", {
 		rows: [{
-			template: "<div class='page-header'>Услуги</div>",
-			autoheight: true
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			},{
+				view: 'button',
+				id: 'userAdd',
+				label: "Создать",
+				type: 'icon',
+				icon: 'user',
+				autowidth: true
+			}]
 		},{
 			view: "datatable",
 			id: "services-list",
@@ -221,25 +274,113 @@ initPage("services", "Услуги", {
 				header: "Контакты",
 				width: 120,
 			}],
-			select: 'row'
+			select: 'row',
+			on: {
+				onItemDblClick: function(id, e, node) {
+					var row = this.getItem(id);
+					openPage("userSummary", row.user_id);
+				}
+			}
 		}]
-	}, function() {
-		wsSendMessage({
-			selectrequest: {table: 'services'}
-		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
-			$$("services-list").parse(rows);
+	}, function(pageid, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'services'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("services-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("service_id", "desc", "int");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
 		});
+		$$(uid).$$("userAdd").attachEvent("onItemClick", function() {
+			openPage("userAdd");
+		});
+
+		update();
 	}
 );
 
+initPage("userAdd", "Добавить пользователя", undefined, function() {
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Добавить пользователя",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formUserAdd",
+			width: 300,
+			elements: [
+				{view: 'text', type: 'text', label: 'Логин пользователя', labelPosition: 'top', name: 'user_login'},
+				{
+					view: "button",
+					value: "Добавить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formUserAdd").getValues();
+						wsSendMessage({
+							functionrequest: {
+								name: 'user_add',
+								params: [{
+									's': JSON.stringify(p)
+								}]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Пользователь создан.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formUserAdd"));
+});
+
+
+/* User summary page */
+
+initPage("userSummary", "Абонент", {
+	rows: [{
+		template: "Тест",
+		autoheight: true
+	}]
+}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				functionrequest: {name: 'user_get_summary', params: [{i: parseInt(params)}]}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var summary = rows[0].user_get_summary;
+			});
+		}
+
+		update();
+});
 
 /* Tickets page */
 
 initPage("tickets", "Заявки", {
 		rows: [{
-			template: "<div class='page-header'>Заявки</div>",
-			autoheight: true
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
 		},{
 			view: "datatable",
 			id: "tickets-list",
@@ -287,11 +428,22 @@ initPage("tickets", "Заявки", {
 			}],
 			select: 'row'
 		}]
-	}, function() {
-		wsSendMessage({
-			selectrequest: {table: 'tickets'}
-		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
-			$$("tickets-list").parse(rows);
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'tickets'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("tickets-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("ticket_id", "desc", "int");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
 		});
+
+		update();
 	});

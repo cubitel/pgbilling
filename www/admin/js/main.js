@@ -38,7 +38,7 @@ function switchToLoginView()
 
 	webix.extend($$("loginView"), webix.ProgressBar);
 	webix.UIManager.addHotKey("enter", doLogin, $$("inputPassword"));
-	
+
 	$$("loginForm").setValues({login: '', password: ''});
 	webix.UIManager.setFocus($$("loginForm"));
 }
@@ -168,7 +168,7 @@ function wsMessage(evt)
 		var txt = "Ошибка " + msg.error.code;
 		if (msg.error.message) txt = txt + "<br/>" + msg.error.message;
 		webix.message(txt);
-		
+
 		if (msg.error.fatal) {
 			ws.close();
 			return;
@@ -214,7 +214,7 @@ function initPage(id, name, def, oncreate)
 	pages[id] = {id: id, name: name, def: def, oncreate: oncreate};
 }
 
-function openPage(id)
+function openPage(id, params)
 {
 	var uid = webix.uid();
 
@@ -222,8 +222,9 @@ function openPage(id)
 		if (pages[id].def != undefined) {
 			var viewcfg = pages[id].def;
 			viewcfg.id = uid;
+			viewcfg.view = 'ui-tab-content';
 			var tab = {
-				id: 'tab-' + id,
+				id: 'tab-' + uid,
 				header: pages[id].name,
 				close: true,
 				body: viewcfg
@@ -231,7 +232,7 @@ function openPage(id)
 			var pageui = $$("panel").addView(tab);
 			$$(viewcfg.id).show();
 		}
-		pages[id].oncreate(pageui, uid);
+		pages[id].oncreate(pageui, uid, params);
 	}
 }
 
@@ -240,7 +241,9 @@ function init()
 	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
 		wsproto = builder.build("WSPROTO");
 	});
-	
+
+	webix.protoUI({name: "ui-tab-content"}, webix.IdSpace, webix.ui.layout);
+
 	webix.type(webix.ui.tree, {
 		name:"menuTree2",
 		height: 40,
