@@ -104,6 +104,66 @@ END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
+CREATE OR REPLACE FUNCTION user_add(vc_params text) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+    m_params jsonb;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	m_params = vc_params::jsonb;
+
+    RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION user_get_summary(n_user_id integer) RETURNS jsonb AS $$
+DECLARE
+    m_oper_id integer;
+    m_user record;
+    m_summary jsonb;
+    m_row record;
+    m_list jsonb[];
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+	SELECT user_id, user_name, login INTO m_user FROM system.users WHERE user_id = n_user_id;
+
+	m_summary = row_to_json(m_user);
+
+	m_list = '{}'::jsonb[];
+	FOR m_row IN SELECT accounts.*
+		FROM system.accounts
+		WHERE user_id = n_user_id
+	LOOP
+		m_list = m_list || row_to_json(m_row)::jsonb;
+	END LOOP;
+	m_summary = jsonb_set(m_summary, '{accounts}', array_to_json(m_list)::jsonb, true);
+
+	m_list = '{}'::jsonb[];
+	FOR m_row IN SELECT services.*,
+		system.services_get_addr(services.house_id, flat_number) AS postaddr,
+		port_name, device_ip, device_mac
+		FROM system.services
+		LEFT JOIN system.device_ports ON device_ports.port_id = services.port_id
+		LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
+		WHERE user_id = n_user_id
+	LOOP
+		m_list = m_list || row_to_json(m_row)::jsonb;
+	END LOOP;
+	m_summary = jsonb_set(m_summary, '{services}', array_to_json(m_list)::jsonb, true);
+
+    RETURN m_summary;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- GRANT TO cabinet
 
 GRANT USAGE ON SCHEMA admin TO admin;

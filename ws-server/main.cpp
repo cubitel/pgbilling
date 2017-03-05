@@ -234,7 +234,7 @@ int main(int ac, char**av)
 					WSPROTO::ServerMessage resp;
 					auto err = resp.mutable_error();
 					err->set_code(WSPROTO::ErrorCode::SERVER_ERROR);
-					err->set_fatal(true);
+					err->set_fatal(false);
 					err->set_message(e.what());
 					sendMessage(server, connection, resp);
 				}

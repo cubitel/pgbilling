@@ -353,7 +353,7 @@ BEGIN
 			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		END IF;
 		
-		IF m_account.balance >= m_tarif.abon OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL THEN
+		IF m_account.balance >= 1 OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL THEN
 			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr)
 				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
 			UPDATE system.services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),

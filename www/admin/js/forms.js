@@ -350,19 +350,35 @@ initPage("userAdd", "Добавить пользователя", undefined, func
 /* User summary page */
 
 initPage("userSummary", "Абонент", {
-	rows: [{
-		template: "Тест",
-		autoheight: true
-	}]
-}, function(pageui, uid, params) {
+		rows: [{
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
+		},{
+			view: 'template',
+			id: 'summary'
+		}]
+	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
 				functionrequest: {name: 'user_get_summary', params: [{i: parseInt(params)}]}
 			}, function(resp) {
 				var rows = parseSelectResponse(resp.selectresponse);
-				var summary = rows[0].user_get_summary;
+				var summary = JSON.parse(rows[0].user_get_summary);
+				$$(uid).$$("summary").setHTML("<pre>" + JSON.stringify(summary, null, 4) + "</pre>");
 			});
 		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
+		});
 
 		update();
 });
