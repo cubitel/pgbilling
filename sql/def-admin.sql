@@ -123,6 +123,16 @@ CREATE OR REPLACE FUNCTION user_add(vc_params text) RETURNS integer AS $$
 DECLARE
     m_oper_id integer;
     m_params jsonb;
+	m_user_id integer;
+	m_account_id integer;
+	m_service_id integer;
+	m_user_login text;
+	m_user_password text;
+	m_inet_speed integer;
+	m_device_ip text;
+	m_device_port text;
+	m_device_id integer;
+	m_port_id integer;
 BEGIN
 	SELECT oper_id INTO m_oper_id FROM sessions;
     IF NOT FOUND THEN
@@ -130,6 +140,66 @@ BEGIN
     END IF;
 
 	m_params = vc_params::jsonb;
+	m_user_login = m_params->>'user_login';
+	m_user_password = m_params->>'user_password';
+	m_inet_speed = (m_params->>'inet_speed')::integer * 1000;
+
+    INSERT INTO system.users (user_name, login_type, login, pass) VALUES(m_user_login, 1, m_user_login, m_user_password);
+    SELECT lastval() INTO m_user_id;
+
+    INSERT INTO system.accounts (user_id, account_number, balance) VALUES(m_user_id, system.account_get_next(), 0);
+    SELECT lastval() INTO m_account_id;
+
+	INSERT INTO system.services
+		(user_id, account_id, service_type, service_name, service_state, inet_speed)
+		VALUES(m_user_id, m_account_id, 1, m_user_login, 1, m_inet_speed);
+    SELECT lastval() INTO m_service_id;
+
+	m_device_ip = m_params->>'device_ip';
+	m_device_port = m_params->>'device_port';
+	IF m_device_ip != '' AND m_device_port != '' THEN
+		SELECT device_id INTO m_device_id FROM system.devices WHERE device_ip = m_device_ip::inet;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Коммутатор не найден';
+		END IF;
+
+		SELECT port_id INTO m_port_id FROM system.device_ports WHERE device_id = m_device_id AND port_name = m_device_port;
+		IF NOT FOUND THEN
+			INSERT INTO system.device_ports (device_id, port_name, snmp_index) VALUES(m_device_id, m_device_port, 0);
+		    SELECT lastval() INTO m_port_id;
+		END IF;
+
+		UPDATE system.services SET port_id = m_port_id WHERE service_id = m_service_id;
+	END IF;
+
+    RETURN m_user_id;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION user_delete(vc_params text) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+    m_params jsonb;
+	m_user_id integer;
+	m_user_login text;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	m_params = vc_params::jsonb;
+	m_user_login = m_params->>'user_login';
+
+	SELECT user_id INTO m_user_id FROM system.users WHERE login = m_user_login;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Пользователь не найден.';
+		RETURN 0;
+	END IF;
+
+	DELETE FROM system.services WHERE user_id = m_user_id;
+	DELETE FROM system.accounts WHERE user_id = m_user_id;
+	DELETE FROM system.users WHERE user_id = m_user_id;
 
     RETURN 1;
 END

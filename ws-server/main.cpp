@@ -152,6 +152,7 @@ static void processMessage(WsServer& server, Client& client,
 			sql += "$" + std::to_string(i);
 		}
 		sql += ")";
+		client.psql->unprepare("func");
 		client.psql->prepare("func", sql);
 		
 		auto stmt = trn.prepared("func");

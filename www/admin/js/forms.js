@@ -234,6 +234,13 @@ initPage("services", "Услуги", {
 				type: 'icon',
 				icon: 'user',
 				autowidth: true
+			},{
+				view: 'button',
+				id: 'userDelete',
+				label: "Удалить",
+				type: 'icon',
+				icon: 'user',
+				autowidth: true
 			}]
 		},{
 			view: "datatable",
@@ -301,6 +308,9 @@ initPage("services", "Услуги", {
 		$$(uid).$$("userAdd").attachEvent("onItemClick", function() {
 			openPage("userAdd");
 		});
+		$$(uid).$$("userDelete").attachEvent("onItemClick", function() {
+			openPage("userDelete");
+		});
 
 		update();
 	}
@@ -319,6 +329,10 @@ initPage("userAdd", "Добавить пользователя", undefined, func
 			width: 300,
 			elements: [
 				{view: 'text', type: 'text', label: 'Логин пользователя', labelPosition: 'top', name: 'user_login'},
+				{view: 'text', type: 'text', label: 'Пароль пользователя', labelPosition: 'top', name: 'user_password'},
+				{view: 'text', type: 'text', label: 'Скорость интернета (Мбит/с)', labelPosition: 'top', name: 'inet_speed'},
+				{view: 'text', type: 'text', label: 'IP адрес коммутатора', labelPosition: 'top', name: 'device_ip'},
+				{view: 'text', type: 'text', label: 'Порт коммутатора', labelPosition: 'top', name: 'device_port'},
 				{
 					view: "button",
 					value: "Добавить",
@@ -344,6 +358,47 @@ initPage("userAdd", "Добавить пользователя", undefined, func
 	});
 
 	webix.UIManager.setFocus($$("formUserAdd"));
+});
+
+
+initPage("userDelete", "Удалить пользователя", undefined, function() {
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Удалить пользователя",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formUserDelete",
+			width: 300,
+			elements: [
+				{view: 'text', type: 'text', label: 'Логин пользователя', labelPosition: 'top', name: 'user_login'},
+				{
+					view: "button",
+					value: "Удалить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formUserDelete").getValues();
+						wsSendMessage({
+							functionrequest: {
+								name: 'user_delete',
+								params: [{
+									's': JSON.stringify(p)
+								}]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Пользователь удален.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formUserDelete"));
 });
 
 
