@@ -36,9 +36,24 @@ BEGIN
 		SELECT payments.*, accounts.account_number
 		FROM system.payments
 		LEFT JOIN system.accounts ON accounts.account_id = payments.account_id;
-	
+
 	GRANT SELECT ON payments TO admin;
 
+
+	CREATE TEMPORARY VIEW report_payments AS
+		SELECT date(oper_time) AS dt, agent_id, sum(amount) AS cost
+		FROM system.payments
+		GROUP BY dt, agent_id;
+
+	GRANT SELECT ON report_payments TO admin;
+
+	CREATE TEMPORARY VIEW report_invoices AS
+		SELECT date(date_trunc('month', oper_time - interval '1 hour')) as dt, sum(-amount) as cost
+		FROM account_logs
+		WHERE amount < 0
+		GROUP BY dt;
+
+	GRANT SELECT ON report_invoices TO admin;
 
     CREATE TEMPORARY VIEW services AS
         SELECT services.*,
@@ -149,10 +164,13 @@ BEGIN
 	m_list = '{}'::jsonb[];
 	FOR m_row IN SELECT services.*,
 		system.services_get_addr(services.house_id, flat_number) AS postaddr,
+		service_state_name, t1.tarif_name,
 		port_name, device_ip, device_mac
 		FROM system.services
 		LEFT JOIN system.device_ports ON device_ports.port_id = services.port_id
 		LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
+		LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
+		LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif
 		WHERE user_id = n_user_id
 	LOOP
 		m_list = m_list || row_to_json(m_row)::jsonb;

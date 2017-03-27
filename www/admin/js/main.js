@@ -83,6 +83,15 @@ function switchToMainView()
 						id: 'map',
 						value: "Карта сети"
 					}]
+				},{
+					value: "Отчеты",
+					submenu: [{
+						id: 'report-payments',
+						value: "Платежи по дням"
+					},{
+						id: 'report-invoices',
+						value: "Списания по дням"
+					}]
 				}],
 				on: {
 					onMenuItemClick: function(id) {

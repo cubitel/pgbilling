@@ -123,12 +123,12 @@ initPage("map", "Карта сети", {
 			zoom: 13,
 			center: [45.0404, 38.9781]
 		}]
-	}, function() {
+	}, function(pageui, uid, params) {
 		wsSendMessage({
 			selectrequest: {table: 'tickets'}
 		}, function(resp) {
 			var rows = parseSelectResponse(resp.selectresponse);
-			var map = $$("map").map;
+			var map = $$(uid).$$("map").map;
 			for (var i in rows) {
 				var row = rows[i];
 				if (row.geopoint != "") {
@@ -372,7 +372,39 @@ initPage("userSummary", "Абонент", {
 			}, function(resp) {
 				var rows = parseSelectResponse(resp.selectresponse);
 				var summary = JSON.parse(rows[0].user_get_summary);
-				$$(uid).$$("summary").setHTML("<pre>" + JSON.stringify(summary, null, 4) + "</pre>");
+
+				var txt = "";
+				txt += "Абонент: " + summary.login + "\n";
+				txt += summary.user_name + "\n";
+				txt += "\n";
+
+				for (var i in summary.accounts) {
+					var account = summary.accounts[i];
+					txt += "Лицевой счет: " + account.account_number + "\n";
+					txt += "Баланс: " + account.balance + "\n";
+					txt += "\n";
+				}
+
+				for (var i in summary.services) {
+					var service = summary.services[i];
+					txt += "Услуга: " + service.service_name + "\n";
+					txt += "Состояние: " + service.service_state_name + "\n";
+					if (service.tarif_name) {
+						txt += "Тариф: " + service.tarif_name + "\n";
+					}
+					if (service.postaddr) {
+						txt += "Адрес: " + service.postaddr + "\n";
+					}
+					if (service.port_name) {
+						txt += "Порт: " + service.port_name + " / " + service.device_ip + "\n";
+					}
+					if (service.serial_no) {
+						txt += "Серийный №: " + service.serial_no + "\n";
+					}
+					txt += "\n";
+				}
+
+				$$(uid).$$("summary").setHTML("<pre>" + txt + "</pre>");
 			});
 		}
 
@@ -463,3 +495,104 @@ initPage("tickets", "Заявки", {
 
 		update();
 	});
+
+/* Report: Payments */
+
+initPage("report-payments", "Отчет по платежам", {
+		rows: [{
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
+		},{
+			view: "datatable",
+			id: "payments-list",
+			columns: [{
+				map: '#dt#',
+				header: "Дата",
+				width: 100,
+				sort: 'string'
+			},{
+				map: '#cost#',
+				header: "Сумма",
+				fillspace: true
+			}],
+			select: 'row'
+		}]
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'report_payments'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("payments-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("dt", "desc", "string");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
+		});
+
+		update();
+	}
+);
+
+/* Report: Invoices */
+
+initPage("report-invoices", "Отчет по услугам", {
+		rows: [{
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
+		},{
+			view: "datatable",
+			id: "payments-list",
+			columns: [{
+				map: '#dt#',
+				header: "Дата",
+				width: 100,
+				sort: 'string'
+			},{
+				map: '#cost#',
+				header: "Сумма",
+				fillspace: true
+			}],
+			select: 'row'
+		}]
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				selectrequest: {table: 'report_invoices'}
+			}, function(resp) {
+				var rows = parseSelectResponse(resp.selectresponse);
+				var table = $$(uid).$$("payments-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("dt", "desc", "string");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
+		});
+
+		update();
+	}
+);
+

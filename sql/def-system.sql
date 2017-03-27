@@ -339,7 +339,7 @@ BEGIN
 			UPDATE system.services SET service_state = 2, invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
 		END IF;
 
-		IF extract(month from m_service.invoice_start) != extract(month from now()) THEN
+		IF extract(month from m_service.invoice_start) != extract(month from now()) OR m_service.next_tarif IS NOT NULL THEN
 			-- New month: create new log line (set invoice_start to null to force it)
 			m_service.invoice_start := NULL;
 		END IF;
