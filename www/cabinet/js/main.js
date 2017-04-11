@@ -105,6 +105,10 @@ function switchToMainView()
 						id: "user-home",
 						value: "Главная",
 						icon: "home",
+					},{
+						id: "user-account-log",
+						value: "Операции",
+						icon: "rub",
 					}]
 				}]
 			},{
@@ -308,9 +312,9 @@ function init()
 		def.id = "panel";
 		pages[name] = {name: name, def: def, oncreate: oncreate};
 	}
-	
+
 	/* Home page */
-	
+
 	page("user-home", {
 		rows: [{
 			template: "<div class='page-header'>Главная</div>",
@@ -327,14 +331,14 @@ function init()
 			}
 		}, function(resp) {
 			var accounts = parseSelectResponse(resp.selectresponse);
-			
+
 			wsSendMessage({
 				selectrequest: {
 					table: "services"
 				}
 			}, function(resp) {
 				var services = parseSelectResponse(resp.selectresponse);
-				
+
 				for (var a in accounts) {
 					// Account header
 					$$("user-home-list").addView({
@@ -353,7 +357,7 @@ function init()
 							}
 						}]
 					});
-					
+
 					for (var s in services) {
 						if (services[s].account_id == accounts[a].account_id) {
 							// Service
@@ -385,11 +389,50 @@ function init()
 						}
 					}
 				}
-				
+
 			});
 		});
 	});
-	
+
+	/* Account log */
+
+	page("user-account-log", {
+		rows: [{
+			template: "<div class='page-header'>Операции по счету</div>",
+			autoheight: true
+		},{
+			view: "datatable",
+			id: "payments-list",
+			columns: [{
+				map: '#oper_time#',
+				header: "Дата",
+				width: 200,
+				sort: 'string'
+			},{
+				map: '#amount#',
+				header: "Сумма",
+				width: 100
+			},{
+				map: '#descr#',
+				header: "Описание операции",
+				fillspace: true
+			}],
+			select: 'row'
+		}]
+	}, function() {
+		wsSendMessage({
+			selectrequest: {
+				table: "account_logs"
+			}
+		}, function(resp) {
+			var rows = parseSelectResponse(resp.selectresponse);
+			var table = $$("payments-list");
+			table.clearAll();
+			table.parse(rows);
+			table.sort("oper_time", "desc", "string");
+		});
+	});
+
 	/* Display login dialog */
 	switchToLoginView();
 };
