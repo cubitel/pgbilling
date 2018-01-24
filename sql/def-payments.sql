@@ -55,5 +55,25 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION payment_summary(n_date_from date, n_date_to date)
+	RETURNS TABLE(day date, agent_id int, sum numeric) AS $$
+DECLARE
+	m_row record;
+BEGIN
+	FOR m_row IN SELECT oper_time::date, payments.agent_id, SUM(amount) AS sum
+		FROM system.payments
+		WHERE oper_time::date BETWEEN n_date_from AND n_date_to
+		GROUP BY oper_time::date, payments.agent_id
+		ORDER BY oper_time::date
+	LOOP
+		day = m_row.oper_time;
+		agent_id = m_row.agent_id;
+		sum = m_row.sum;
+		RETURN NEXT;
+	END LOOP;
+
+	RETURN;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT USAGE ON SCHEMA payments TO payments;

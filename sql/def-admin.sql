@@ -199,6 +199,8 @@ BEGIN
 
 	DELETE FROM system.services WHERE user_id = m_user_id;
 	DELETE FROM system.accounts WHERE user_id = m_user_id;
+	DELETE FROM system.user_contacts WHERE user_id = m_user_id;
+	DELETE FROM system.user_data WHERE user_id = m_user_id;
 	DELETE FROM system.users WHERE user_id = m_user_id;
 
     RETURN 1;
@@ -234,12 +236,13 @@ BEGIN
 	m_list = '{}'::jsonb[];
 	FOR m_row IN SELECT services.*,
 		system.services_get_addr(services.house_id, flat_number) AS postaddr,
-		service_state_name, t1.tarif_name,
+		service_state_name, service_type_name, t1.tarif_name,
 		port_name, device_ip, device_mac
 		FROM system.services
 		LEFT JOIN system.device_ports ON device_ports.port_id = services.port_id
 		LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
 		LEFT JOIN system.service_state_names ON service_state_names.service_state = services.service_state
+		LEFT JOIN system.service_types ON service_types.service_type = services.service_type
 		LEFT JOIN system.tarifs AS t1 ON t1.tarif_id = services.current_tarif
 		WHERE user_id = n_user_id
 	LOOP
@@ -250,6 +253,23 @@ BEGIN
     RETURN m_summary;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION ticket_delete(n_ticket_id int) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	DELETE FROM system.tickets WHERE ticket_id = n_ticket_id;
+
+    RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 
 -- GRANT TO cabinet

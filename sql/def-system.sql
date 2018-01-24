@@ -86,7 +86,12 @@ BEGIN
 		UPDATE accounts SET balance = balance + NEW.amount WHERE account_id = NEW.account_id;
 		RETURN NEW;
 	ELSIF TG_OP = 'UPDATE' THEN
-		UPDATE accounts SET balance = balance + NEW.amount - OLD.amount WHERE account_id = NEW.account_id;
+		IF OLD.account_id != NEW.account_id THEN
+			UPDATE accounts SET balance = balance - OLD.amount WHERE account_id = OLD.account_id;
+			UPDATE accounts SET balance = balance + NEW.amount WHERE account_id = NEW.account_id;
+		ELSE
+			UPDATE accounts SET balance = balance + NEW.amount - OLD.amount WHERE account_id = NEW.account_id;
+		END IF;
 		RETURN NEW;
 	ELSIF TG_OP = 'DELETE' THEN
 		UPDATE accounts SET balance = balance - OLD.amount WHERE account_id = OLD.account_id;
@@ -159,7 +164,8 @@ CREATE TABLE IF NOT EXISTS networks (
 	network_id serial PRIMARY KEY,
 	network_addr inet NOT NULL,
 	addr_start inet NOT NULL,
-	addr_stop inet NOT NULL
+	addr_stop inet NOT NULL,
+	interface_name text
 );
 
 -- system.devices
@@ -558,7 +564,8 @@ CREATE TABLE IF NOT EXISTS user_devices (
 	device_id serial PRIMARY KEY,
 	model_id integer NOT NULL REFERENCES device_models,
 	serial_no varchar(32) NOT NULL,
-	service_id integer REFERENCES services
+	service_id integer REFERENCES services,
+	oper_id integer REFERENCES operators
 );
 
 -- Functions

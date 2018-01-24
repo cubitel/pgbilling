@@ -74,6 +74,7 @@ DECLARE
 	m_service system.services%rowtype;
 	m_attr system.radius_attrs%rowtype;
 	m_ip inet;
+	m_interface text;
 BEGIN
 	SELECT * INTO m_service FROM system.services WHERE service_id = n_service_id;
 	IF NOT FOUND THEN
@@ -84,25 +85,29 @@ BEGIN
 	op := ':=';
 	username := '';
 
-	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state
-	LOOP
-		attribute := m_attr.attr_name;
-		value := m_attr.attr_value;
-		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
-		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
-		RETURN NEXT;
-	END LOOP;
-
-	attribute := 'Class';
-	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
-	RETURN NEXT;
+	m_interface = '';
 
 	SELECT ip_address INTO m_ip FROM system.services_addr WHERE service_id = m_service.service_id AND family(ip_address) = 4;
 	IF FOUND THEN
 		attribute := 'Framed-IP-Address';
 		value := m_ip;
 		RETURN NEXT;
+		SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 	END IF;
+
+	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state OR service_state = -1
+	LOOP
+		attribute := m_attr.attr_name;
+		value := m_attr.attr_value;
+		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
+		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
+		SELECT replace(value, '{interface}', coalesce(m_interface, '')) INTO value;
+		RETURN NEXT;
+	END LOOP;
+
+	attribute := 'Class';
+	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
+	RETURN NEXT;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -141,6 +146,7 @@ DECLARE
 	m_port_id integer;
 	m_device_id integer;
 	m_port_number varchar;
+	m_interface text;
 BEGIN
 	IF vc_remoteid = '' THEN
 		-- login/password scheme
@@ -193,24 +199,14 @@ BEGIN
 	op := ':=';
 	username := vc_username;
 
-	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state AND in_coa = 0
-	LOOP
-		attribute := m_attr.attr_name;
-		value := m_attr.attr_value;
-		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
-		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
-		RETURN NEXT;
-	END LOOP;
-
-	attribute := 'Class';
-	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
-	RETURN NEXT;
+	m_interface = '';
 
 	SELECT ip_address INTO m_ip FROM system.services_addr WHERE service_id = m_service.service_id AND family(ip_address) = 4;
 	IF FOUND THEN
 		attribute := 'Framed-IP-Address';
 		value := m_ip;
 		RETURN NEXT;
+		SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 	ELSE
 		IF m_network IS NOT NULL THEN
 			SELECT system.get_free_ip(m_network.addr_start, m_network.addr_stop) INTO m_ip;
@@ -218,8 +214,23 @@ BEGIN
 			attribute := 'Framed-IP-Address';
 			value := m_ip;
 			RETURN NEXT;
+			SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 		END IF;
 	END IF;
+
+	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE (service_state = m_service.service_state OR service_state = -1) AND in_coa = 0
+	LOOP
+		attribute := m_attr.attr_name;
+		value := m_attr.attr_value;
+		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
+		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
+		SELECT replace(value, '{interface}', coalesce(m_interface, '')) INTO value;
+		RETURN NEXT;
+	END LOOP;
+
+	attribute := 'Class';
+	value := m_service.service_id::varchar || '-' || m_service.service_state::varchar || '-' || m_service.inet_speed::varchar;
+	RETURN NEXT;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

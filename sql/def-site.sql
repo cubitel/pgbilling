@@ -167,6 +167,10 @@ BEGIN
 	
 	UPDATE system.tickets SET ticket_status = 4, time_completed = now() where ticket_id = m_ticket.ticket_id;
 	
+	IF m_service.serial_no IS NOT NULL THEN
+		DELETE FROM system.user_devices WHERE serial_no = m_service.serial_no;
+	END IF;
+	
 	PERFORM pg_notify('services_new', m_service_id::text);
 	PERFORM pg_notify('sms', '7' || m_ticket.phone || ',Пароль в ЛК: ' || m_password);
 	
