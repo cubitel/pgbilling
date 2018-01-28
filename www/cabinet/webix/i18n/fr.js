@@ -72,7 +72,11 @@ webix.i18n.locales["fr-FR"]={
     },
     richtext:{
         underline: "Souligner",
-        bold: "Audacieux",
+        bold: "Gras",
         italic: "Italique"
+    },
+    combo:{
+    	selectAll:"Tout sélectionner",
+    	unselectAll:"Tout déselectionner"
     }
 };

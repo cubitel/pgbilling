@@ -25,7 +25,7 @@ webix.i18n.locales["it-IT"] = {
 		hours: "Orario",
 		minutes: "Minuti",
 		done:"Pronto",
-		clear: "Chiara",
+		clear: "Pulisci",
 		today: "Oggi"
     },
 
@@ -79,5 +79,9 @@ webix.i18n.locales["it-IT"] = {
         underline: "Sottolineare",
         bold: "Grassetto",
         italic: "Corsivo"
+    },
+    combo:{
+    	selectAll:"Seleziona tutto",
+    	unselectAll:"Deseleziona tutto"
     }
 };
