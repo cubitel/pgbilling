@@ -26,6 +26,11 @@ if ($action == "checkOrder") {
 
 if ($action == "paymentAviso") {
 	$tag = "paymentAvisoResponse";
+
+	if (function_exists('printCheck')) {
+		printCheck($account, $sum, "");
+	}
+
 	$res = dbPay($config["yandex"]["agentId"], $account, $sum, $invoiceId, "Платеж через Яндекс.Деньги");
 	if ($res == 0) {
 		$code = 100;

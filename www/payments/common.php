@@ -5,6 +5,9 @@
 $dblink = @pg_connect($config["database"]["cstring"]);
 if (!$dblink) die();
 
+if (isset($config["kassa"])) {
+	@include_once($config["kassa"]["module"].".php");
+}
 
 function dbCheck($agentId, $accountNumber)
 {
@@ -12,7 +15,7 @@ function dbCheck($agentId, $accountNumber)
 
 	$res = pg_query_params($dblink, "SELECT payment_check($1, $2)", array($agentId, $accountNumber));
 	if (!$res) return false;
-	
+
 	$row = pg_fetch_row($res);
 	return $row[0];
 }
@@ -23,7 +26,7 @@ function dbPay($agentId, $accountNumber, $amount, $agentRef, $descr)
 
 	$res = pg_query_params($dblink, "SELECT payment_pay($1, $2, $3, $4, $5)", array($agentId, $accountNumber, $amount, $agentRef, $descr));
 	if (!$res) return false;
-	
+
 	$row = pg_fetch_row($res);
 	return $row[0];
 }
@@ -71,4 +74,11 @@ function osmpProcess($agentName)
 		
 		osmpResponse(0, $txn_id);
 	}
+}
+
+function jsonReply($data)
+{
+	header("Content-Type: application/json");
+	print(json_encode($data, JSON_UNESCAPED_UNICODE));
+	die();
 }
