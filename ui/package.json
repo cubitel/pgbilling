@@ -1,0 +1,23 @@
+{
+  "name": "pgbilling-ui",
+  "version": "0.2.0",
+  "description": "PgBilling user interface server",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "NPK Cubitel",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "express": "^4.16.2",
+    "express-ws": "^3.0.0",
+    "json-sql": "^0.3.11",
+    "pg": "^7.4.1",
+    "ws": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.0.39",
+    "@types/ws": "^3.2.0",
+    "typescript": "^2.6.1"
+  }
+}

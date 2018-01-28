@@ -1,0 +1,27 @@
+<h3>Главная</h3>
+<div id="services"></div>
+
+<script id="tmpl-services" type="text/x-handlebars-template">
+<h3>Услуги</h3>
+<table class="table table-stripped">
+<tbody>
+{{#each rows}}
+<tr>
+<td>
+	<div>{{this.service_name}} ({{this.service_state_name}})</div>
+	<div>{{this.postaddr}}</div>
+</td>
+</tr>
+{{/each}}
+</tbody>
+</table>
+</script>
+
+<script type="text/javascript">
+
+(async function() {
+	var services = await $$.cmd("select", {table: "services"});
+	$$.render("#services", "#tmpl-services", services);
+})();
+
+</script>

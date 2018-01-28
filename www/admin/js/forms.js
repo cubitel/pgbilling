@@ -31,9 +31,10 @@ initPage("changePassword", "Изменить пароль", undefined, function(
 							return;
 						}
 						wsSendMessage({
-							functionrequest: {
-								name: 'change_password',
-								params: [{s: p.pass1}]
+							cmd: 'perform',
+							params: {
+								proc: 'change_password',
+								params: [p.pass1]
 							}
 						}, function(resp) {
 							win.close();
@@ -93,9 +94,9 @@ initPage("payments", "Платежи", {
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'payments'}
+				cmd: 'select', params: {table: 'payments'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("payments-list");
 				table.clearAll();
 				table.parse(rows);
@@ -125,9 +126,9 @@ initPage("map", "Карта сети", {
 		}]
 	}, function(pageui, uid, params) {
 		wsSendMessage({
-			selectrequest: {table: 'tickets'}
+			cmd: 'select', params: {table: 'tickets'}
 		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
+			var rows = resp.rows;
 			var map = $$(uid).$$("map").map;
 			for (var i in rows) {
 				var row = rows[i];
@@ -195,9 +196,9 @@ initPage("sessions", "Активные сессии", {
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'radius_sessions'}
+				cmd: 'select', params: {table: 'radius_sessions'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("session-list");
 				table.clearAll();
 				table.parse(rows);
@@ -292,9 +293,9 @@ initPage("services", "Услуги", {
 	}, function(pageid, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'services'}
+				cmd: 'select', params: {table: 'services'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("services-list");
 				table.clearAll();
 				table.parse(rows);
@@ -341,11 +342,10 @@ initPage("userAdd", "Добавить пользователя", undefined, func
 					click: function() {
 						var p = $$("formUserAdd").getValues();
 						wsSendMessage({
-							functionrequest: {
-								name: 'user_add',
-								params: [{
-									's': JSON.stringify(p)
-								}]
+							cmd: 'perform',
+							params: {
+								proc: 'user_add',
+								params: [JSON.stringify(p)]
 							}
 						}, function(resp) {
 							win.close();
@@ -382,11 +382,10 @@ initPage("userDelete", "Удалить пользователя", undefined, fun
 					click: function() {
 						var p = $$("formUserDelete").getValues();
 						wsSendMessage({
-							functionrequest: {
-								name: 'user_delete',
-								params: [{
-									's': JSON.stringify(p)
-								}]
+							cmd: 'perform',
+							params: {
+								proc: 'user_delete',
+								params: [JSON.stringify(p)]
 							}
 						}, function(resp) {
 							win.close();
@@ -405,6 +404,7 @@ initPage("userDelete", "Удалить пользователя", undefined, fun
 /* User summary page */
 
 initPage("userSummary", "Абонент", {
+	cols: [{
 		rows: [{
 			view: "toolbar",
 			padding: 3,
@@ -418,20 +418,58 @@ initPage("userSummary", "Абонент", {
 			}]
 		},{
 			view: 'template',
-			id: 'summary'
+			id: 'summary',
+			height: 200
+		},{
+			view: "datatable",
+			id: "services-list",
+			columns: [{
+				map: '#service_state_name#',
+				header: "Состояние",
+				width: 100
+			},{
+				map: '#service_name#',
+				header: "Имя",
+				width: 180
+			},{
+				map: '#postaddr#',
+				header: "Адрес оказания услуги",
+				fillspace: true
+			}],
+			select: 'row'
 		}]
+	},{
+		rows: [{
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'status',
+				label: "Статус порта",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
+		},{
+			view: 'template',
+			id: 'info'
+		}]
+	}]
+
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				functionrequest: {name: 'user_get_summary', params: [{i: parseInt(params)}]}
+				cmd: 'perform', params: {proc: 'user_get_summary', params: [parseInt(params)]}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
-				var summary = JSON.parse(rows[0].user_get_summary);
+				var rows = resp.rows;
+				var summary = rows[0].user_get_summary;
 
 				var txt = "";
 				txt += "Абонент: " + summary.login + "\n";
 				txt += summary.user_name + "\n";
 				txt += "\n";
+
+				var rows = [];
 
 				for (var i in summary.accounts) {
 					var account = summary.accounts[i];
@@ -442,29 +480,57 @@ initPage("userSummary", "Абонент", {
 
 				for (var i in summary.services) {
 					var service = summary.services[i];
-					txt += "Услуга: " + service.service_name + "\n";
-					txt += "Состояние: " + service.service_state_name + "\n";
+
+					var descr = service.service_type_name + "<br/>";
 					if (service.tarif_name) {
-						txt += "Тариф: " + service.tarif_name + "\n";
+						descr += "Тариф: " + service.tarif_name + "<br/>";
 					}
 					if (service.postaddr) {
-						txt += "Адрес: " + service.postaddr + "\n";
+						descr += "Адрес: " + service.postaddr + "<br/>";
 					}
 					if (service.port_name) {
-						txt += "Порт: " + service.port_name + " / " + service.device_ip + "\n";
+						descr += "Порт: " + service.port_name + " / " + service.device_ip +
+						" <a href='https://lk.b2b-telecom.ru/netapi/device/" + service.device_ip + "/ont/" + service.port_name + "/status'>Статус</a>" +
+						"<br/>";
 					}
 					if (service.serial_no) {
-						txt += "Серийный №: " + service.serial_no + "\n";
+						descr += "Серийный №: " + service.serial_no + "<br/>";
 					}
-					txt += "\n";
+					rows.push({
+						service_name: service.service_name + "<br/>" + service.service_state_name,
+						summary: descr
+					});
 				}
 
+				var table = $$(uid).$$("services-list");
+				table.clearAll();
+				table.parse(summary.services);
 				$$(uid).$$("summary").setHTML("<pre>" + txt + "</pre>");
 			});
 		}
 
 		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
 			update();
+		});
+		$$(uid).$$("services-list").attachEvent("onItemClick", function(id, e, node) {
+			var row = this.getItem(id);
+
+			var descr = row.service_type_name + "<br/>";
+			if (row.tarif_name) {
+				descr += "Тариф: " + row.tarif_name + "<br/>";
+			}
+			if (row.postaddr) {
+				descr += "Адрес: " + row.postaddr + "<br/>";
+			}
+			if (row.port_name) {
+				descr += "Порт: " + row.port_name + " / " + row.device_ip +
+				" <a href='/netapi/device/" + row.device_ip + "/ont/" + row.port_name + "/status' target='_blank'>Статус</a>" +
+				"<br/>";
+			}
+			if (row.serial_no) {
+				descr += "Серийный №: " + row.serial_no + "<br/>";
+			}
+			$$(uid).$$("info").setHTML("<pre>" + descr + "</pre>");
 		});
 
 		update();
@@ -529,14 +595,20 @@ initPage("tickets", "Заявки", {
 				width: 100,
 				sort: 'int'
 			}],
-			select: 'row'
+			select: 'row',
+			on: {
+				onItemDblClick: function(id, e, node) {
+					var row = this.getItem(id);
+					openPage("ticketEdit", row.ticket_id);
+				}
+			}
 		}]
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'tickets'}
+				cmd: 'select', params: {table: 'tickets'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("tickets-list");
 				table.clearAll();
 				table.parse(rows);
@@ -550,6 +622,70 @@ initPage("tickets", "Заявки", {
 
 		update();
 	});
+
+
+/* Edit ticket */
+
+initPage("ticketEdit", "Редактировать заявку", undefined, function(pageui, uid, params) {
+
+	var ticket_id = parseInt(params);
+
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Редактировать заявку",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formTicketEdit",
+			width: 300,
+			elements: [
+				{view: 'text', type: 'text', label: 'Телефон', labelPosition: 'top', name: 'phone'},
+				{view: 'text', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', name: 'comment'},
+				{
+					view: "button",
+					value: "Сохранить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formTicketEdit").getValues();
+						wsSendMessage({
+							cmd: 'perform',
+							params: {
+								proc: 'ticket_edit',
+								params: [JSON.stringify(p)]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Данные обновлены.");
+						});
+					}
+				},
+				{
+					view: "button",
+					value: "Удалить",
+					width: 150,
+					align: "center",
+					click: function() {
+						wsSendMessage({
+							cmd: 'perform',
+							params: {
+								name: 'ticket_delete',
+								params: [ticket_id]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Заявка удалена.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formTicketEdit"));
+});
 
 /* Report: Payments */
 
@@ -583,9 +719,9 @@ initPage("report-payments", "Отчет по платежам", {
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'report_payments'}
+				cmd: 'select', params: {table: 'report_payments'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("payments-list");
 				table.clearAll();
 				table.parse(rows);
@@ -633,9 +769,9 @@ initPage("report-invoices", "Отчет по услугам", {
 	}, function(pageui, uid, params) {
 		var update = function() {
 			wsSendMessage({
-				selectrequest: {table: 'report_invoices'}
+				cmd: 'select', params: {table: 'report_invoices'}
 			}, function(resp) {
-				var rows = parseSelectResponse(resp.selectresponse);
+				var rows = resp.rows;
 				var table = $$(uid).$$("payments-list");
 				table.clearAll();
 				table.parse(rows);

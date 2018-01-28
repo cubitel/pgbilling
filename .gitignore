@@ -7,3 +7,6 @@ CMakeFiles
 *.pb.cc
 *.pb.h
 ws-server/ws-server
+config.js
+node_modules
+package-lock.json

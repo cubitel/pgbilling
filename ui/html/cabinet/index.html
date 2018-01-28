@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+	<title>Личный кабинет</title>
+	<!-- Required meta tags -->
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+	<!-- CSS -->
+	<link rel="stylesheet" href="/assets/bootstrap.min.css" />
+	<style type="text/css">
+	.logged-in {
+		display: none;
+	}
+	.wrapper {
+		margin-top: 100px;
+		margin-bottom: 20px;
+	}
+	.form-signin {
+		max-width: 420px;
+		padding: 30px 38px 66px;
+		margin: 0 auto;
+		background-color: #eee;
+		border: 3px dotted rgba(0,0,0,0.1);
+	}
+	</style>
+	<!-- JavaScript -->
+	<script src="/assets/jquery-3.2.1.min.js"></script>
+	<script src="/assets/popper.min.js"></script>
+	<script src="/assets/bootstrap.min.js"></script>
+	<script src="/assets/handlebars.js"></script>
+	<script src="/assets/framework.js"></script>
+	<script src="app.js"></script>
+</head>
+<body>
+	<header>
+		<nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+			<a class="navbar-brand" href="#">Личный кабинет</a>
+			<div class="collapse navbar-collapse" id="navbar">
+				<ul class="logged-in navbar-nav mr-auto">
+				</ul>
+			</div>
+			<ul class="logged-in navbar-nav navbar-right">
+				<li class="nav-item"><a class="nav-link" href="javascript:$$.logout();">Выход</a></li>
+			</ul>
+		</nav>
+	</header>
+	<div class="container-fluid" style="margin-top: 70px">
+		<div class="wrapper">
+		<form id="formLogin" class="form-signin">
+			<h2 class="form-signin-heading">Авторизация</h2>
+			<label for="inputLogin" class="">Логин</label>
+			<input type="text" id="inputLogin" class="form-control" placeholder="Логин" required autofocus>
+			<br/>
+			<label for="inputPassword" class="">Пароль</label>
+			<input type="password" id="inputPassword" class="form-control" placeholder="Пароль" required>
+			<br/>
+			<button id="btnLogin" class="btn btn-lg btn-primary btn-block">Войти</button>
+			<br/>
+			<div id="loginError" style="display: none;" class="alert alert-danger"></div>
+		</form>
+		</div>
+		<div id="page">
+		</div>
+	</div>
+</body>
+</html>

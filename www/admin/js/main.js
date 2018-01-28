@@ -1,5 +1,4 @@
 
-var wsproto;
 var wssequence = 1;
 var wscallback = [];
 
@@ -23,7 +22,7 @@ function switchToLoginView()
 			id: "loginForm",
 			width: 300,
 			elements: [
-				{view: 'text', label: 'Логин', name: 'login'},
+				{view: 'text', label: 'Логин', name: 'login', id: 'inputLogin'},
 				{view: 'text', label: 'Пароль', name: 'password', type: 'password', id: 'inputPassword'},
 				{
 					view: "button",
@@ -124,20 +123,17 @@ function switchToMainView()
 
 function wsSendMessage(data, callback)
 {
-	data.sequence = wssequence++;
+	data.id = data.id || wssequence++;
 	if (callback) {
-		wscallback.push({sequence: data.sequence, func: callback});
+		wscallback.push({sequence: data.id, func: callback});
 	}
 
-	var msg = new wsproto.ClientMessage(data);
-	var buf = msg.encode();
-	ws.send(buf.toArrayBuffer());
+	ws.send(JSON.stringify(data));
 }
 
 function wsCreate()
 {
 	ws = new WebSocket(cfgServerURL);
-	ws.binaryType = 'arraybuffer';
 	ws.onopen = wsOpen;
 	ws.onclose = wsClose;
 	ws.onmessage = wsMessage;
@@ -145,9 +141,6 @@ function wsCreate()
 
 function wsOpen()
 {
-	wsSendMessage({
-		'loginrequest': $$("loginForm").getValues()
-	});
 }
 
 function wsClose()
@@ -159,14 +152,15 @@ function wsClose()
 
 function wsMessage(evt)
 {
-	var msg = wsproto.ServerMessage.decode(evt.data);
+	var msg = JSON.parse(evt.data);
+	console.log(msg)
 
 	$$("loginView").hideProgress();
-	
-	if (msg.sequence) {
+
+	if (msg.id) {
 		for (var i in wscallback) {
-			if (wscallback[i].sequence == msg.sequence) {
-				wscallback[i].func(msg);
+			if (wscallback[i].sequence == msg.id) {
+				wscallback[i].func(msg.response);
 				wscallback.splice(i, 1);
 				break;
 			}
@@ -174,24 +168,29 @@ function wsMessage(evt)
 	}
 
 	if (msg.error) {
-		var txt = "Ошибка " + msg.error.code;
-		if (msg.error.message) txt = txt + "<br/>" + msg.error.message;
+		var txt = "Ошибка: " + msg.error;
 		webix.message(txt);
 
-		if (msg.error.fatal) {
+		if ( (msg.fatal) || (msg.id == 'login') ) {
 			ws.close();
 			return;
 		}
 	}
 
-	if (msg.loginresponse) {
-		if (msg.loginresponse.status == 0) {
-			webix.message("Неверный логин или пароль.");
-			ws.close();
-			return;
+	if (msg.event) {
+		if (msg.event == 'ready') {
+			var form = $$('loginForm').getValues();
+			wsSendMessage({
+				'cmd': 'login',
+				'id': 'login',
+				'login': form.login,
+				'password': form.password
+			});
 		}
-		switchToMainView();
+	}
 
+	if (msg.id == 'login') {
+		switchToMainView();
 		return;
 	}
 
@@ -247,10 +246,6 @@ function openPage(id, params)
 
 function init()
 {
-	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
-		wsproto = builder.build("WSPROTO");
-	});
-
 	webix.protoUI({name: "ui-tab-content"}, webix.IdSpace, webix.ui.layout);
 
 	webix.type(webix.ui.tree, {
