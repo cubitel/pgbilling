@@ -41,7 +41,7 @@ BEGIN
 	INSERT INTO system.account_logs
 		(user_id, account_id, oper_time, amount, descr)
 		VALUES(m_user_id, m_account_id, NOW(), n_amount, vc_descr);
-	
+
 	FOR m_service_id IN SELECT service_id FROM system.services WHERE account_id = m_account_id AND current_tarif IS NOT NULL
 	LOOP
 		PERFORM system.services_update_invoice(m_service_id);
@@ -54,6 +54,15 @@ BEGIN
     RETURN lastval();
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION payment_set_check_data(n_payment_id integer, vc_check_data text) RETURNS integer AS $$
+BEGIN
+	UPDATE system.payments SET check_data = vc_check_data WHERE payment_id = n_payment_id;
+    RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 
 CREATE OR REPLACE FUNCTION payment_summary(n_date_from date, n_date_to date)
 	RETURNS TABLE(day date, agent_id int, sum numeric) AS $$

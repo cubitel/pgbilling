@@ -671,7 +671,7 @@ initPage("ticketEdit", "Редактировать заявку", undefined, fun
 						wsSendMessage({
 							cmd: 'perform',
 							params: {
-								name: 'ticket_delete',
+								proc: 'ticket_delete',
 								params: [ticket_id]
 							}
 						}, function(resp) {

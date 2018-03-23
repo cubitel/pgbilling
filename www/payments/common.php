@@ -31,6 +31,18 @@ function dbPay($agentId, $accountNumber, $amount, $agentRef, $descr)
 	return $row[0];
 }
 
+function dbSetCheckData($paymentId, $checkData)
+{
+	global $dblink;
+
+	$res = pg_query_params($dblink, "SELECT payment_set_check_data($1, $2)", array($paymentId, $checkData));
+	if (!$res) return false;
+
+	$row = pg_fetch_row($res);
+	return $row[0];
+}
+
+
 function osmpResponse($result, $txn_id="")
 {
 	$osmp_txn_id = $_REQUEST['txn_id'];

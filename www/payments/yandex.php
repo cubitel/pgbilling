@@ -8,6 +8,7 @@ $shopId = $_POST['shopId'];
 $time = $_POST['requestDatetime'];
 $sum = floatval($_POST['orderSumAmount']);
 $account = $_POST['customerNumber'];
+$phone = $_POST['phoneOrEmail'];
 
 
 $tag = "Response";
@@ -27,15 +28,18 @@ if ($action == "checkOrder") {
 if ($action == "paymentAviso") {
 	$tag = "paymentAvisoResponse";
 
-	if (function_exists('printCheck')) {
-		printCheck($account, $sum, "");
-	}
-
-	$res = dbPay($config["yandex"]["agentId"], $account, $sum, $invoiceId, "Платеж через Яндекс.Деньги");
-	if ($res == 0) {
+	$paymentId = dbPay($config["yandex"]["agentId"], $account, $sum, $invoiceId, "Платеж через Яндекс.Деньги");
+	if ($paymentId == 0) {
 		$code = 100;
 	} else {
 		$code = 0;
+		if (function_exists('printCheck')) {
+			if ($phone == "") $phone = "";
+			$check = printCheck($account, $sum, $phone);
+			if ($check) {
+				dbSetCheckData($paymentId, $check['QR']);
+			}
+		}
 	}
 }
 

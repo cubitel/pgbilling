@@ -5,6 +5,8 @@ var wscallback = [];
 
 var pages = [];
 
+var phoneOrEmail = "";
+
 
 function switchToLoginView()
 {
@@ -191,6 +193,18 @@ function wsMessage(evt)
 		}
 		switchToMainView();
 
+		phoneOrEmail = "";
+		wsSendMessage({
+			selectrequest: {
+				table: "user_contacts"
+			}
+		}, function(resp) {
+			var contacts = parseSelectResponse(resp.selectresponse);
+			for (var i in contacts) {
+				if (contacts[i].contact_type == 1) phoneOrEmail = "+7" + contacts[i].contact_value;
+			}
+		});
+
 		return;
 	}
 
@@ -240,6 +254,7 @@ function doAccountPay(account)
 							p.customerNumber = account;
 							p.shopId = cfgYandexShopId;
 							p.scid = cfgYandexScid;
+							p.phoneOrEmail = phoneOrEmail;
 							webix.send("https://money.yandex.ru/eshop.xml", p);
 						}
 					},

@@ -57,6 +57,13 @@ BEGIN
 
     GRANT SELECT ON services TO cabinet;
 
+    CREATE TEMPORARY VIEW user_contacts AS
+        SELECT * FROM system.user_contacts
+        WHERE user_id IN (SELECT user_id FROM sessions);
+
+    GRANT SELECT ON user_contacts TO cabinet;
+
+
     RETURN 1;
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;

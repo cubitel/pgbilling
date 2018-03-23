@@ -45,7 +45,17 @@ function printCheck($account, $amount, $phone)
 		'FullResponse' => true
 	);
 
-	return rpsystemAPI("Complex", $req);
+	$res = rpsystemAPI("Complex", $req);
+
+	if (!is_array($res->Responses)) return false;
+
+	foreach ($res->Responses as $response) {
+		if (isset($response->Response->QR)) return array(
+			'QR' => $response->Response->QR,
+			'Text' => $response->Response->Text
+		);
+	}
+	return false;
 }
 
 function closeTurn()
