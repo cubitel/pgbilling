@@ -40,7 +40,7 @@ function switchToLoginView()
 
 	webix.extend($$("loginView"), webix.ProgressBar);
 	webix.UIManager.addHotKey("enter", doLogin, $$("inputPassword"));
-	
+
 	$$("loginForm").setValues({login: '', password: ''});
 	webix.UIManager.setFocus($$("loginForm"));
 }
@@ -119,26 +119,23 @@ function switchToMainView()
 			}]
 		}]
 	});
-	
+
 	$$("sidebar").select("user-home");
 }
 
 function wsSendMessage(data, callback)
 {
-	data.sequence = wssequence++;
+	data.id = data.id || wssequence++;
 	if (callback) {
-		wscallback.push({sequence: data.sequence, func: callback});
+		wscallback.push({sequence: data.id, func: callback});
 	}
 
-	var msg = new wsproto.ClientMessage(data);
-	var buf = msg.encode();
-	ws.send(buf.toArrayBuffer());
+	ws.send(JSON.stringify(data));
 }
 
 function wsCreate()
 {
 	ws = new WebSocket(cfgServerURL);
-	ws.binaryType = 'arraybuffer';
 	ws.onopen = wsOpen;
 	ws.onclose = wsClose;
 	ws.onmessage = wsMessage;
@@ -146,9 +143,6 @@ function wsCreate()
 
 function wsOpen()
 {
-	wsSendMessage({
-		'loginrequest': $$("loginForm").getValues()
-	});
 }
 
 function wsClose()
@@ -160,14 +154,14 @@ function wsClose()
 
 function wsMessage(evt)
 {
-	var msg = wsproto.ServerMessage.decode(evt.data);
+	var msg = JSON.parse(evt.data);
 
 	$$("loginView").hideProgress();
-	
-	if (msg.sequence) {
+
+	if (msg.id) {
 		for (var i in wscallback) {
-			if (wscallback[i].sequence == msg.sequence) {
-				wscallback[i].func(msg);
+			if (wscallback[i].sequence == msg.id) {
+				wscallback[i].func(msg.response);
 				wscallback.splice(i, 1);
 				break;
 			}
@@ -175,31 +169,35 @@ function wsMessage(evt)
 	}
 
 	if (msg.error) {
-		var txt = "Ошибка " + msg.error.code;
-		if (msg.error.message) txt = txt + "<br/>" + msg.error.message;
+		var txt = "Ошибка: " + msg.error;
 		webix.message(txt);
-		
-		if (msg.error.fatal) {
+
+		if ( (msg.fatal) || (msg.id == 'login') ) {
 			ws.close();
 			return;
 		}
 	}
 
-	if (msg.loginresponse) {
-		if (msg.loginresponse.status == 0) {
-			webix.message("Неверный логин или пароль.");
-			ws.close();
-			return;
+	if (msg.event) {
+		if (msg.event == 'ready') {
+			var form = $$('loginForm').getValues();
+			wsSendMessage({
+				'cmd': 'login',
+				'id': 'login',
+				'login': form.login,
+				'password': form.password
+			});
 		}
+	}
+
+	if (msg.id == 'login') {
 		switchToMainView();
 
 		phoneOrEmail = "";
 		wsSendMessage({
-			selectrequest: {
-				table: "user_contacts"
-			}
+			cmd: 'select', params: {table: "user_contacts"}
 		}, function(resp) {
-			var contacts = parseSelectResponse(resp.selectresponse);
+			var contacts = resp.rows;
 			for (var i in contacts) {
 				if (contacts[i].contact_type == 1) phoneOrEmail = "+7" + contacts[i].contact_value;
 			}
@@ -208,21 +206,6 @@ function wsMessage(evt)
 		return;
 	}
 
-}
-
-function parseSelectResponse(resp)
-{
-	var res = [];
-
-	var colcount = resp.columns.length;
-	var row = 0;
-	for (var i in resp.data) {
-		if ((i % colcount) == 0) row++;
-		if (res[row-1] == undefined) res[row-1] = {};
-		res[row-1][resp.columns[i % colcount]] = resp.data[i];
-	}
-
-	return res;
 }
 
 function doLogin()
@@ -284,9 +267,10 @@ function doAccountPromise(account_id)
 		callback: function(result) {
 			if (!result) return;
 			wsSendMessage({
-				functionrequest: {
-					name: 'account_promise_payment',
-					params: [{i: parseInt(account_id)}]
+				cmd: 'perform',
+				params: {
+					proc: 'account_promise_payment',
+					params: [parseInt(account_id)]
 				}
 			}, function(resp) {
 				webix.alert("Ваша заявка на обещанный платеж зарегистрирована.");
@@ -297,10 +281,8 @@ function doAccountPromise(account_id)
 
 function init()
 {
-	var wsprotofile = dcodeIO.ProtoBuf.loadProtoFile("wsproto.proto?r=" + Math.random(), function(err, builder) {
-		wsproto = builder.build("WSPROTO");
-	});
-	
+	webix.i18n.setLocale("ru-RU");
+
 	webix.type(webix.ui.tree, {
 		name:"menuTree2",
 		height: 40,
@@ -341,18 +323,14 @@ function init()
 		},{}]
 	}, function() {
 		wsSendMessage({
-			selectrequest: {
-				table: "accounts"
-			}
+			cmd: 'select', params: {table: "accounts"}
 		}, function(resp) {
-			var accounts = parseSelectResponse(resp.selectresponse);
+			var accounts = resp.rows;
 
 			wsSendMessage({
-				selectrequest: {
-					table: "services"
-				}
+				cmd: 'select', params: {table: "services"}
 			}, function(resp) {
-				var services = parseSelectResponse(resp.selectresponse);
+				var services = resp.rows;
 
 				for (var a in accounts) {
 					// Account header
@@ -393,10 +371,10 @@ function init()
 									data: services[s],
 									template: function(data) {
 										var s = "";
-										if (data.postaddr != "") s += "<div>Адрес: " + data.postaddr + "</div>";
-										if (data.current_tarif_name != "") s += "<div>Тариф: " + data.current_tarif_name + "</div>";
-										if (data.inet_speed != "") s += "<div>Скорость: " + Math.round(data.inet_speed / 1000) + " Мбит/с</div>";
-										if (data.next_tarif_name != "") s += "<div>Следующий тариф: " + data.next_tarif_name + "</div>";
+										if (data.postaddr) s += "<div>Адрес: " + data.postaddr + "</div>";
+										if (data.current_tarif_name) s += "<div>Тариф: " + data.current_tarif_name + "</div>";
+										if (data.inet_speed) s += "<div>Скорость: " + Math.round(data.inet_speed / 1000) + " Мбит/с</div>";
+										if (data.next_tarif_name) s += "<div>Следующий тариф: " + data.next_tarif_name + "</div>";
 										return s;
 									}
 								}]
@@ -422,6 +400,9 @@ function init()
 				map: '#oper_time#',
 				header: "Дата",
 				width: 200,
+				format: function (value) {
+					return webix.i18n.fullDateFormatStr(new Date(value));
+				},
 				sort: 'string'
 			},{
 				map: '#amount#',
@@ -436,11 +417,9 @@ function init()
 		}]
 	}, function() {
 		wsSendMessage({
-			selectrequest: {
-				table: "account_logs"
-			}
+			cmd: 'select', params: {table: "account_logs"}
 		}, function(resp) {
-			var rows = parseSelectResponse(resp.selectresponse);
+			var rows = resp.rows;
 			var table = $$("payments-list");
 			table.clearAll();
 			table.parse(rows);
