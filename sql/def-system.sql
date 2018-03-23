@@ -44,6 +44,17 @@ COMMENT ON COLUMN operators.login IS 'Логин оператора';
 COMMENT ON COLUMN operators.pass IS 'Пароль оператора';
 COMMENT ON COLUMN operators.totp_key IS 'Секретный ключ для TOTP авторизации';
 
+-- system.agreements
+
+CREATE TABLE IF NOT EXISTS agreements (
+	agreement_id serial PRIMARY KEY,
+	agrm_number text NOT NULL,
+	start_date date NOT NULL,
+	end_date date,
+	confirmed int NOT NULL DEFAULT 0,
+	UNIQUE(agrm_number,start_date)
+);
+
 -- system.accounts
 
 CREATE TABLE IF NOT EXISTS accounts (
@@ -53,6 +64,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     balance numeric(10,2) NOT NULL,
     time_created timestamp,
     promised_end_date timestamp,
+    agreement_id integer REFERENCES agreements,
     UNIQUE(account_number)
 );
 
@@ -142,13 +154,57 @@ CREATE UNIQUE INDEX IF NOT EXISTS house_numbers ON addr_houses(street_guid, hous
 
 COMMENT ON TABLE addr_houses IS 'Каталог домов';
 
--- system.boxes
+-- system.place_types
 
-CREATE TABLE IF NOT EXISTS boxes (
-	box_id serial PRIMARY KEY,
-	box_location public.geometry(Point, 4326),
-	port_count integer NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS place_types (
+	place_type serial PRIMARY KEY,
+	place_type_name text NOT NULL
 );
+
+COMMENT ON TABLE place_types IS 'Типы мест (локаций)';
+
+-- system.places
+
+CREATE TABLE IF NOT EXISTS places (
+	place_id serial PRIMARY KEY,
+	place_type integer NOT NULL REFERENCES place_types,
+	name text NOT NULL DEFAULT '',
+	house_id integer REFERENCES addr_houses,
+	location public.geometry(Point, 4326)
+);
+
+COMMENT ON TABLE places IS 'Места (локации)';
+
+-- system.optic_cables
+
+CREATE TABLE IF NOT EXISTS optic_cables (
+	cable_id serial PRIMARY KEY,
+	cable_type integer,
+	cable_length integer
+);
+
+COMMENT ON TABLE optic_cables IS 'Кабели';
+
+-- system.optic_box_types
+
+CREATE TABLE IF NOT EXISTS optic_box_types (
+	box_type serial PRIMARY KEY,
+	box_type_name text NOT NULL
+);
+
+COMMENT ON TABLE optic_box_types IS 'Типы мест сварок';
+
+-- system.optic_boxes
+
+CREATE TABLE IF NOT EXISTS optic_boxes (
+	box_id serial PRIMARY KEY,
+	box_type integer NOT NULL REFERENCES optic_box_types,
+	place_id integer NOT NULL REFERENCES places,
+	cables integer[] NOT NULL,
+	splices jsonb
+);
+
+COMMENT ON TABLE optic_boxes IS 'Места сварок';
 
 -- system.device_models
 
@@ -237,7 +293,8 @@ CREATE TABLE IF NOT EXISTS payments (
     agent_id integer NOT NULL REFERENCES payagents,
     agent_ref varchar(128) NOT NULL,
     descr varchar(128) NOT NULL,
-    external_id varchar(128)
+    external_id varchar(128),
+	check_data text
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS payments_external_id ON payments(external_id);
@@ -246,6 +303,64 @@ CREATE UNIQUE INDEX IF NOT EXISTS payments_agent_ref ON payments(agent_ref, agen
 CREATE OR REPLACE RULE insert_notify AS
     ON INSERT TO payments
     DO ALSO NOTIFY payments_insert;
+
+-- system.pon_ont_types
+
+CREATE TABLE IF NOT EXISTS pon_ont_types (
+	ont_type serial PRIMARY KEY,
+	ont_type_name text NOT NULL,
+	ont_profile text
+);
+
+COMMENT ON TABLE pon_ont_types IS 'Модели ONT';
+
+-- system pon_ont_states
+
+CREATE TABLE IF NOT EXISTS pon_ont_states (
+	ont_state integer PRIMARY KEY,
+	ont_state_name text NOT NULL
+);
+
+COMMENT ON TABLE pon_ont_states IS 'Состояния ONT';
+
+INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(1, 'Активна') ON CONFLICT DO NOTHING;
+INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(2, 'Неактивна') ON CONFLICT DO NOTHING;
+
+-- system.pon_services
+
+CREATE TABLE IF NOT EXISTS pon_services (
+	service_id serial PRIMARY KEY,
+	service_name text NOT NULL,
+	config_template jsonb NOT NULL
+);
+
+COMMENT ON TABLE pon_services IS 'Шаблоны конфигураций услуг PON';
+
+-- system.pon_ont
+
+CREATE TABLE IF NOT EXISTS pon_ont (
+	ont_id serial PRIMARY KEY,
+	ont_serial text,
+	ont_next_serial text,
+	ont_old_serial text,
+	ont_type integer NOT NULL REFERENCES pon_ont_types,
+	ont_state integer NOT NULL REFERENCES pon_ont_states,
+	device_id integer REFERENCES devices,
+	device_port text,
+	api_fail_count integer NOT NULL DEFAULT 0,
+	api_fail_message text,
+	box_id integer REFERENCES optic_boxes,
+	place_id integer REFERENCES places,
+	services jsonb NOT NULL,
+	create_time timestamptz NOT NULL,
+	modify_time timestamptz,
+	delete_time timestamptz
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS pon_ont_serial ON pon_ont(ont_serial);
+CREATE UNIQUE INDEX IF NOT EXISTS pon_ont_nextserial ON pon_ont(ont_next_serial);
+
+COMMENT ON TABLE pon_ont IS 'Список обслуживаемых ONT';
 
 -- system.radius_attrs
 
@@ -555,7 +670,9 @@ CREATE TABLE IF NOT EXISTS user_data (
 	doc_number varchar(128),
 	doc_date date,
 	doc_auth varchar(256),
-	doc_auth_code varchar(16)
+	doc_auth_code varchar(16),
+	reg_address text,
+	change_time timestamptz
 );
 
 -- system.user_devices
