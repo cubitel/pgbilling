@@ -51,6 +51,8 @@ BEGIN
         (user_id, account_id, oper_time, amount, agent_id, agent_ref, descr)
         VALUES(m_user_id, m_account_id, NOW(), n_amount, n_agent_id, vc_agent_ref, vc_descr);
 
+	UPDATE system.accounts SET promised_count = 0 WHERE account_id = m_account_id;
+
     RETURN lastval();
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;

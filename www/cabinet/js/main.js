@@ -273,7 +273,7 @@ function doAccountPromise(account_id)
 					params: [parseInt(account_id)]
 				}
 			}, function(resp) {
-				webix.alert("Ваша заявка на обещанный платеж зарегистрирована.");
+				webix.alert("Ваша заявка на обещанный платеж зарегистрирована. Вы должны внести платеж в течении суток.");
 			});
 		}
 	});

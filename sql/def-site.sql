@@ -34,7 +34,7 @@ BEGIN
 	IF FOUND THEN
 		RETURN m_ticket_id;
 	END IF;
-	
+
 	INSERT INTO system.tickets (ticket_type, service_type, house_id, street_guid, house_number, flat_number, phone)
 		VALUES(1, 1, n_house_id, vc_street_guid, vc_house_number, n_flat_number, vc_phone);
 	SELECT lastval() INTO m_ticket_id;

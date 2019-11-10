@@ -75,14 +75,17 @@ initPage("payments", "Платежи", {
 				map: '#oper_time#',
 				header: "Время платежа",
 				width: 200,
-				sort: 'string'
+				sort: 'string',
+				format: function (value) {
+					return webix.i18n.fullDateFormatStr(new Date(value));
+				}
 			},{
 				map: '#account_number#',
-				header: "Лицевой счет",
+				header: ["Лицевой счет", {content:"textFilter"}],
 				width: 200
 			},{
 				map: '#amount#',
-				header: "Сумма",
+				header: ["Сумма", {content:"numberFilter"}],
 				width: 200
 			},{
 				map: '#descr#',
@@ -116,30 +119,320 @@ initPage("payments", "Платежи", {
 
 initPage("map", "Карта сети", {
 		rows: [{
-			template: "<div class='page-header'>Карта сети</div>",
-			autoheight: true
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			}]
 		},{
 			view: "open-map",
 			id: "map",
 			zoom: 13,
 			center: [45.0404, 38.9781]
 		}]
-	}, function(pageui, uid, params) {
-		wsSendMessage({
-			cmd: 'select', params: {table: 'tickets'}
-		}, function(resp) {
-			var rows = resp.rows;
-			var map = $$(uid).$$("map").map;
-			for (var i in rows) {
-				var row = rows[i];
-				if (row.geopoint != "") {
-					var point = JSON.parse(row.geopoint);
-					L.marker([point.coordinates[1], point.coordinates[0]]).addTo(map).bindPopup(row.ticket_id + ': ' + row.street_name + ' ' + row.house_number);
-				}
-			}
+	}, async function(pageui, uid, params) {
+		var boxIcon = L.icon({
+			iconUrl: 'js/images/marker-red.png',
+			iconSize: [24, 24],
+			iconAnchor: [12, 24],
+			popupAnchor: [0, -12]
 		});
+		var onuIcon = L.icon({
+			iconUrl: 'js/images/marker-green.png',
+			iconSize: [24, 24],
+			iconAnchor: [12, 24],
+			popupAnchor: [0, -12]
+		});
+		var ticketIcon = L.icon({
+			iconUrl: 'js/images/marker-blue-land.png',
+			iconSize: [24, 24],
+			iconAnchor: [12, 24],
+			popupAnchor: [0, -12]
+		});
+
+		var map = $$(uid).$$("map").map;
+		var popup = L.popup();
+
+		map.on('click', function(e) {
+			popup.setLatLng(e.latlng)
+				.setContent(e.latlng.toString() + "<br/>"
+					+ "<a href=\"javascript:openPage('boxAdd', {lat: " + e.latlng.lat + ", long: " + e.latlng.lng + "});\">Добавить бокс</a>")
+				.openOn(map);
+		});
+
+		var resp = await sendRequest({cmd: 'select', params: {table: 'tickets'}});
+		for (var i in resp.rows) {
+			var row = resp.rows[i];
+			if (row.geopoint != "") {
+				var point = JSON.parse(row.geopoint);
+				if (point != null) L.marker([point.coordinates[1], point.coordinates[0]], {icon: ticketIcon})
+					.addTo(map)
+					.bindPopup(row.ticket_id + ': ' + row.street_name + ' ' + row.house_number);
+			}
+		}
+
+		var resp = await sendRequest({cmd: 'select', params: {table: 'optic_boxes'}});
+		for (var i in resp.rows) {
+			var row = resp.rows[i];
+			if (row.geopoint != "") {
+				var point = JSON.parse(row.geopoint);
+				if (point != null) L.marker([point.coordinates[1], point.coordinates[0]], {icon: boxIcon})
+					.addTo(map)
+					.bindPopup(row.box_type_name + ' #' + row.box_id);
+			}
+		}
+
+		var resp = await sendRequest({cmd: 'select', params: {
+			table: 'pon_ont',
+			condition: {ont_state: {$ne: 4}}
+		}});
+		for (var i in resp.rows) {
+			var row = resp.rows[i];
+			if (row.geopoint != "") {
+				var point = JSON.parse(row.geopoint);
+				if (point != null) L.marker([point.coordinates[1], point.coordinates[0]], {icon: onuIcon})
+					.addTo(map)
+					.bindPopup(row.ont_serial + '<br/>' + row.description);
+			}
+		}
 	}
 );
+
+
+/* PON ONT */
+
+initPage("ponONT", "Устройства PON", {
+		rows: [{
+			view: "toolbar",
+			padding: 3,
+			elements: [{
+				view: 'button',
+				id: 'refresh',
+				label: "Обновить",
+				type: 'icon',
+				icon: 'refresh',
+				autowidth: true
+			},{
+				view: 'button',
+				id: 'ponAddONU',
+				label: "Добавить ONU",
+				type: 'icon',
+				icon: 'user',
+				autowidth: true
+			}]
+		},{
+			view: "datatable",
+			id: "ponont-list",
+			columns: [{
+				map: '#ont_serial#',
+				header: ["Серийный номер", {content:"textFilter"}],
+				width: 180,
+				sort: 'string'
+			},{
+				map: '#ont_state_name#',
+				header: ["Управление", {content:"selectFilter"}],
+				width: 150
+			},{
+				map: '#ont_type_name#',
+				header: ["Тип ONT", {content:"selectFilter"}],
+				width: 200
+			},{
+				map: '#device_description#',
+				header: ["OLT", {content:"selectFilter"}],
+				width: 240,
+			},{
+				map: '#device_port#',
+				header: ["OLT ONU ID", {content:"textFilter"}],
+				width: 150
+			},{
+				map: '#box_id#',
+				header: ["Бокс", {content:"numberFilter"}],
+				width: 120
+			},{
+				map: '#description#',
+				header: ["Описание", {content:"textFilter"}],
+				fillspace: true,
+			},{
+				map: '#rssi#',
+				header: "Статус",
+				width: 120,
+				template: '<input class="rssi" type="button" value="RSSI">'
+			}],
+			select: 'row',
+			on: {
+				onItemDblClick: function(id, e, node) {
+					var row = this.getItem(id);
+					openPage("ponEditONU", row.ont_id);
+				}
+			},
+			onClick: {
+				'rssi': function (e, id, trg) {
+					var grid = this
+					var item = this.getItem(id)
+					$.get(cfgNetapiURL + 'device/' + item.device_ip + '/ont/' + item.device_port + '/status', {}, function (status) {
+						alert(JSON.stringify(status))
+					})
+					return false
+				}
+			}
+		}]
+	}, function(pageui, uid, params) {
+		var update = function() {
+			wsSendMessage({
+				cmd: 'select', params: {table: 'pon_ont', condition: {ont_state: {$ne: 4}}}
+			}, function(resp) {
+				var rows = resp.rows;
+				var table = $$(uid).$$("ponont-list");
+				table.clearAll();
+				table.parse(rows);
+				table.sort("create_time", "desc", "string");
+			});
+		}
+
+		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
+			update();
+		});
+		$$(uid).$$("ponAddONU").attachEvent("onItemClick", function() {
+			openPage("ponAddONU");
+		});
+
+		update();
+	}
+);
+
+/* Add PON ONU */
+
+initPage("ponAddONU", "Добавить ONU", undefined, function(pageui, uid, params) {
+
+	var ticket_id = parseInt(params);
+
+	wsSendMessage({
+		cmd: 'select', params: {table: 'pon_ont_types'}
+	}, function(resp) {
+		var rows = resp.rows;
+		var ont_types = [];
+
+		for (var i in rows) {
+			ont_types.push({id: rows[i].ont_type, value: rows[i].ont_type_name});
+		}
+
+		var win = webix.ui({
+			view: 'window',
+			hidden: false,
+			head: "Добавить ONU",
+			move: true,
+			position: 'center',
+			body: {
+				view: 'form',
+				id: "formAddONU",
+				width: 300,
+				elements: [
+					{view: 'text', type: 'text', label: 'FSAN', labelPosition: 'top', name: 'ont_serial'},
+					{view: 'select', type: 'text', label: 'Сервис', labelPosition: 'top', name: 'ont_type', options: ont_types},
+					{view: 'text', type: 'text', label: 'Комментарий', labelPosition: 'top', name: 'description'},
+					{
+						view: "button",
+						value: "Добавить",
+						width: 150,
+						align: "center",
+						click: function() {
+							var p = $$("formAddONU").getValues();
+							wsSendMessage({
+								cmd: 'perform',
+								params: {
+									proc: 'pon_ont_add',
+									params: [JSON.stringify(p)]
+								}
+							}, function(resp) {
+								win.close();
+								webix.alert("Данные сохранены.");
+							});
+						}
+					}
+				]
+			}
+		});
+
+		webix.UIManager.setFocus($$("formAddONU"));
+	});
+});
+
+/* Edit ONT */
+
+initPage("ponEditONU", "Редактировать ONU", undefined, async function(pageui, uid, params) {
+
+	var ont_id = parseInt(params);
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'pon_ont', condition: {ont_id: ont_id}}});
+	var ont = resp.rows[0];
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'pon_ont_states'}});
+
+	var statusOptions = [];
+	for (var i in resp.rows) {
+		if (resp.rows[i].ont_state == 4) continue;
+		statusOptions.push({id: resp.rows[i].ont_state, value: resp.rows[i].ont_state_name});
+	}
+
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Редактировать ONU",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formEditONU",
+			width: 700,
+			elements: [
+				{cols: [
+					{rows: [
+						{view: 'fieldset', label: 'FSAN', body: {rows: [
+							{view: 'text', label: 'FSAN', labelPosition: 'top', value: ont.ont_serial, disabled: true},
+							{view: 'select', label: 'Управление ONU', labelPosition: 'top', options: statusOptions, name: 'ont_state', value: ont.ont_state},
+							{view: 'text', label: 'Новый FSAN', labelPosition: 'top', name: 'ont_next_serial', value: ont.ont_next_serial},
+						]}
+					}]},
+					{rows: [
+						{view: 'fieldset', label: 'Оборудование', body: {rows: [
+							{view: 'text', label: 'Ошибка API', labelPosition: 'top', value: ont.api_fail_message, disabled: true},
+							{view: 'text', label: 'OLT', labelPosition: 'top', value: ont.device_description, disabled: true},
+							{view: 'text', label: 'ONU ID', labelPosition: 'top', value: ont.device_port, disabled: true},
+						]}
+					}]},
+				]},
+				{view: 'text', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', name: 'description', value: ont.description},
+				{
+					view: "button",
+					value: "Сохранить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formEditONU").getValues();
+						p.ont_id = ont_id;
+						wsSendMessage({
+							cmd: 'perform',
+							params: {
+								proc: 'pon_ont_edit',
+								params: [JSON.stringify(p)]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Данные обновлены.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formEditONU"));
+});
 
 
 /* Sessions page */
@@ -167,14 +460,17 @@ initPage("sessions", "Активные сессии", {
 				map: '#create_time#',
 				header: "Время подключения",
 				width: 200,
-				sort: 'string'
+				sort: 'string',
+				format: function (value) {
+					return webix.i18n.fullDateFormatStr(new Date(value));
+				}
 			},{
 				map: '#username#',
-				header: "Имя пользователя",
+				header: ["Имя пользователя", {content:"textFilter"}],
 				width: 200
 			},{
 				map: '#service_name#',
-				header: "Имя услуги",
+				header: ["Имя услуги", {content:"textFilter"}],
 				fillspace: true,
 				sort: 'string'
 			},{
@@ -183,12 +479,12 @@ initPage("sessions", "Активные сессии", {
 				width: 150
 			},{
 				map: '#device_ip#',
-				header: "IP устройства",
+				header: ["IP устройства", {content:"textFilter"}],
 				width: 150,
 				sort: 'string'
 			},{
 				map: '#port_name#',
-				header: "Порт устройства",
+				header: ["Порт устройства", {content:"textFilter"}],
 				width: 150
 			}],
 			select: 'row'
@@ -253,33 +549,33 @@ initPage("services", "Услуги", {
 				sort: 'int'
 			},{
 				map: '#service_name#',
-				header: "Имя услуги",
+				header: ["Имя услуги", {content:"textFilter"}],
 				width: 150,
 				sort: 'string'
 			},{
 				map: '#service_state_name#',
-				header: "Состояние",
+				header: ["Состояние", {content:"selectFilter"}],
 				width: 150,
 			},{
 				map: '#tarif_name#',
-				header: "Тариф",
+				header: ["Тариф", {content:"selectFilter"}],
 				width: 120,
 			},{
 				map: '#balance#',
-				header: "Баланс",
+				header: ["Баланс", {content:"numberFilter"}],
 				width: 100,
 			},{
 				map: '#user_name#',
-				header: "Абонент",
+				header: ["Абонент", {content:"textFilter"}],
 				width: 220,
 			},{
 				map: '#postaddr#',
-				header: "Адрес оказания услуги",
+				header: ["Адрес оказания услуги", {content:"textFilter"}],
 				fillspace: true,
 				sort: 'string'
 			},{
 				map: '#contacts#',
-				header: "Контакты",
+				header: ["Контакты", {content:"textFilter"}],
 				width: 120,
 			}],
 			select: 'row',
@@ -490,7 +786,7 @@ initPage("userSummary", "Абонент", {
 					}
 					if (service.port_name) {
 						descr += "Порт: " + service.port_name + " / " + service.device_ip +
-						" <a href='https://lk.b2b-telecom.ru/netapi/device/" + service.device_ip + "/ont/" + service.port_name + "/status'>Статус</a>" +
+						" <a href='" + cfgNetapiURL + "device/" + service.device_ip + "/ont/" + service.port_name + "/status'>Статус</a>" +
 						"<br/>";
 					}
 					if (service.serial_no) {
@@ -555,45 +851,44 @@ initPage("tickets", "Заявки", {
 			id: "tickets-list",
 			columns: [{
 				map: '#ticket_id#',
-				header: "Номер",
+				header: ["Номер", {content:"numberFilter"}],
 				width: 70,
 				sort: 'int'
 			},{
 				map: '#time_created#',
-				header: "Дата",
+				header: ["Дата", {content:"dateFilter"}],
 				width: 110,
-				sort: 'string'
+				sort: 'string',
+				format: function (value) {
+					return webix.i18n.dateFormatStr(new Date(value));
+				}
 			},{
 				map: '#ticket_type_name#',
-				header: "Тип",
+				header: ["Тип", {content:"selectFilter"}],
 				width: 200
 			},{
 				map: '#ticket_status_name#',
-				header: "Статус",
+				header: ["Статус", {content:"selectFilter"}],
 				width: 150,
 				sort: 'string'
 			},{
-				map: '#street_name#',
-				header: "Улица",
+				map: '#postaddr#',
+				header: ["Адрес", {content:"textFilter"}],
 				fillspace: true,
 				sort: 'string'
 			},{
-				map: '#house_number#',
-				header: "Дом",
-				width: 70
-			},{
-				map: '#flat_number#',
-				header: "Кв",
-				width: 70
-			},{
 				map: '#phone#',
-				header: "Телефон",
+				header: ["Телефон", {content:"textFilter"}],
 				width: 150
 			},{
 				map: '#dist#',
-				header: "Расстояние",
+				header: ["Расстояние", {content:"numberFilter"}],
 				width: 100,
 				sort: 'int'
+			},{
+				map: '#last_comment#',
+				header: ["Комментарий", {content:"textFilter"}],
+				width: 350
 			}],
 			select: 'row',
 			on: {
@@ -624,11 +919,76 @@ initPage("tickets", "Заявки", {
 	});
 
 
-/* Edit ticket */
+/* Add ticket */
 
-initPage("ticketEdit", "Редактировать заявку", undefined, function(pageui, uid, params) {
+initPage("ticketAdd", "Добавить заявку", undefined, async function(pageui, uid, params) {
 
 	var ticket_id = parseInt(params);
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'ticket_statuses'}});
+	var statuses = resp.rows;
+
+	var statusOptions = [];
+	for (var i in statuses) {
+		statusOptions.push({id: statuses[i].ticket_status, value: statuses[i].ticket_status_name});
+	}
+
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Добавить заявку",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formTicketAdd",
+			width: 300,
+			elements: [
+				{view: 'select', label: 'Статус заявки', options: statusOptions, name: 'ticket_status'},
+				{view: 'text', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', name: 'comment'},
+				{
+					view: "button",
+					value: "Сохранить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formTicketAdd").getValues();
+						p.ticket_id = ticket_id;
+						wsSendMessage({
+							cmd: 'perform',
+							params: {
+								proc: 'ticket_add',
+								params: [JSON.stringify(p)]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Данные обновлены.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formTicketAdd"));
+});
+
+/* Edit ticket */
+
+initPage("ticketEdit", "Редактировать заявку", undefined, async function(pageui, uid, params) {
+
+	var ticket_id = parseInt(params);
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'tickets', condition: {ticket_id: ticket_id}}});
+	var ticket = resp.rows[0];
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'ticket_statuses'}});
+	var statuses = resp.rows;
+
+	var statusOptions = [];
+	for (var i in statuses) {
+		statusOptions.push({id: statuses[i].ticket_status, value: statuses[i].ticket_status_name});
+	}
 
 	var win = webix.ui({
 		view: 'window',
@@ -639,10 +999,10 @@ initPage("ticketEdit", "Редактировать заявку", undefined, fun
 		body: {
 			view: 'form',
 			id: "formTicketEdit",
-			width: 300,
+			width: 500,
 			elements: [
-				{view: 'text', type: 'text', label: 'Телефон', labelPosition: 'top', name: 'phone'},
-				{view: 'text', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', name: 'comment'},
+				{view: 'select', label: 'Статус заявки', options: statusOptions, value: ticket.ticket_status, name: 'ticket_status'},
+				{view: 'textarea', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', height: 100, value: ticket.last_comment, name: 'comment'},
 				{
 					view: "button",
 					value: "Сохранить",
@@ -650,6 +1010,7 @@ initPage("ticketEdit", "Редактировать заявку", undefined, fun
 					align: "center",
 					click: function() {
 						var p = $$("formTicketEdit").getValues();
+						p.ticket_id = ticket_id;
 						wsSendMessage({
 							cmd: 'perform',
 							params: {
@@ -659,24 +1020,6 @@ initPage("ticketEdit", "Редактировать заявку", undefined, fun
 						}, function(resp) {
 							win.close();
 							webix.alert("Данные обновлены.");
-						});
-					}
-				},
-				{
-					view: "button",
-					value: "Удалить",
-					width: 150,
-					align: "center",
-					click: function() {
-						wsSendMessage({
-							cmd: 'perform',
-							params: {
-								proc: 'ticket_delete',
-								params: [ticket_id]
-							}
-						}, function(resp) {
-							win.close();
-							webix.alert("Заявка удалена.");
 						});
 					}
 				}
@@ -708,7 +1051,10 @@ initPage("report-payments", "Отчет по платежам", {
 				map: '#dt#',
 				header: "Дата",
 				width: 100,
-				sort: 'string'
+				sort: 'string',
+				format: function (value) {
+					return webix.i18n.dateFormatStr(new Date(value));
+				}
 			},{
 				map: '#cost#',
 				header: "Сумма",
@@ -757,11 +1103,23 @@ initPage("report-invoices", "Отчет по услугам", {
 			columns: [{
 				map: '#dt#',
 				header: "Дата",
-				width: 100,
-				sort: 'string'
+				width: 200,
+				sort: 'string',
+				format: function (value) {
+					var format = webix.Date.dateToStr("%F %Y");
+					return format(new Date(value));
+				}
 			},{
-				map: '#cost#',
-				header: "Сумма",
+				map: '#payments#',
+				header: "Оплачено",
+				width: 200
+			},{
+				map: '#invoices#',
+				header: "Услуг связи",
+				width: 200
+			},{
+				map: '#cost_connect#',
+				header: "Подключение",
 				fillspace: true
 			}],
 			select: 'row'

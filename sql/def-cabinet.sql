@@ -95,7 +95,8 @@ BEGIN
 		RETURN 0;
 	END IF;
 
-	UPDATE system.accounts SET promised_end_date = now() + interval '1 day' WHERE account_id = n_account_id;
+	UPDATE system.accounts SET promised_end_date = now() + interval '1 day', promised_count = promised_count + 1
+		WHERE account_id = n_account_id;
 
 	FOR m_service_id IN SELECT service_id FROM system.services WHERE account_id = n_account_id AND current_tarif IS NOT NULL
 	LOOP

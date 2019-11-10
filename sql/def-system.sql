@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     time_created timestamp,
     promised_end_date timestamp,
     agreement_id integer REFERENCES agreements,
+    promised_count integer NOT NULL DEFAULT 0,
     UNIQUE(account_number)
 );
 
@@ -232,7 +233,8 @@ CREATE TABLE IF NOT EXISTS devices (
 	device_mac macaddr,
 	snmp_community varchar(16),
 	network_id integer REFERENCES networks,
-	port_offset int NOT NULL DEFAULT 0
+	port_offset int NOT NULL DEFAULT 0,
+	device_description text
 );
 
 COMMENT ON TABLE devices IS 'Сетевые устройства';
@@ -325,6 +327,8 @@ COMMENT ON TABLE pon_ont_states IS 'Состояния ONT';
 
 INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(1, 'Активна') ON CONFLICT DO NOTHING;
 INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(2, 'Неактивна') ON CONFLICT DO NOTHING;
+INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(3, 'На удаление') ON CONFLICT DO NOTHING;
+INSERT INTO pon_ont_states (ont_state, ont_state_name) VALUES(4, 'Удалена') ON CONFLICT DO NOTHING;
 
 -- system.pon_services
 
@@ -354,7 +358,8 @@ CREATE TABLE IF NOT EXISTS pon_ont (
 	services jsonb NOT NULL,
 	create_time timestamptz NOT NULL,
 	modify_time timestamptz,
-	delete_time timestamptz
+	delete_time timestamptz,
+	description text
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS pon_ont_serial ON pon_ont(ont_serial);
@@ -414,6 +419,7 @@ CREATE TABLE IF NOT EXISTS services (
     invoice_start timestamp,
     invoice_end timestamp,
     invoice_log_id integer REFERENCES account_logs(log_id),
+    ont_id integer REFERENCES pon_ont,
     CHECK(service_type != 1 OR service_state != 1 OR (inet_speed IS NOT NULL AND inet_speed > 0))
 );
 
@@ -439,18 +445,23 @@ DECLARE
 	m_account system.accounts%rowtype;
 	m_tarif system.tarifs%rowtype;
 	m_abon numeric(10,2);
+	m_period_text text;
 BEGIN
 	SELECT * INTO m_service FROM system.services WHERE service_id = n_service_id AND current_tarif IS NOT NULL;
 	IF NOT FOUND THEN
 		RETURN;
 	END IF;
-	
+
 	SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
-	
+
 	IF m_service.invoice_start IS NOT NULL THEN
 		SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		m_abon := m_tarif.abon * extract(epoch from (now() - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
-		UPDATE system.account_logs SET amount = - m_abon, oper_time = now() WHERE log_id = m_service.invoice_log_id;
+		m_period_text := to_char(m_service.invoice_start, 'DD.MM HH24:MI') || ' - ' || to_char(now(), 'DD.MM HH24:MI');
+		UPDATE system.account_logs
+			SET amount = - m_abon, oper_time = now(),
+				descr = 'Абонентская плата по тарифу ' || m_tarif.tarif_name || ' [' || m_period_text || ']'
+			WHERE log_id = m_service.invoice_log_id;
 
 		-- Get updated balance
 		SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
@@ -465,7 +476,7 @@ BEGIN
 			m_service.invoice_start := NULL;
 		END IF;
 	END IF;
-	
+
 	IF m_service.invoice_start IS NULL THEN
 		-- Period closed, check if we can start new period
 		IF m_service.next_tarif IS NOT NULL THEN
@@ -473,7 +484,7 @@ BEGIN
 		ELSE
 			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		END IF;
-		
+
 		IF m_account.balance >= 1 OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL THEN
 			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr)
 				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
@@ -495,7 +506,7 @@ BEGIN
 			PERFORM pg_notify('radius_coa', m_session_id::text);
 		END IF;
 	END IF;
-	
+
 	RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
@@ -570,7 +581,8 @@ CREATE OR REPLACE RULE insert_notify AS
 
 CREATE TABLE IF NOT EXISTS ticket_statuses (
 	ticket_status integer NOT NULL PRIMARY KEY,
-	ticket_status_name varchar(128) NOT NULL
+	ticket_status_name varchar(128) NOT NULL,
+	final_status integer NOT NULL DEFAULT 0
 );
 
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(1, 'Новая') ON CONFLICT DO NOTHING;
@@ -580,6 +592,7 @@ INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(4, 'Вы�
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(5, 'Отказ оператора') ON CONFLICT DO NOTHING;
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(6, 'Отказ абонента') ON CONFLICT DO NOTHING;
 INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(7, 'Подготовка') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_statuses (ticket_status, ticket_status_name) VALUES(8, 'Ожидание') ON CONFLICT DO NOTHING;
 
 -- system.ticket_types
 
@@ -590,6 +603,7 @@ CREATE TABLE IF NOT EXISTS ticket_types (
 
 INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(1, 'Подключение услуги') ON CONFLICT DO NOTHING;
 INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(2, 'Отключение услуги') ON CONFLICT DO NOTHING;
+INSERT INTO ticket_types (ticket_type, ticket_type_name) VALUES(3, 'Ремонт') ON CONFLICT DO NOTHING;
 
 -- system.tickets
 
@@ -608,7 +622,18 @@ CREATE TABLE IF NOT EXISTS tickets (
 	time_completed timestamp,
 	division_id integer REFERENCES divisions,
 	location public.geometry(Point, 4326),
-	flat_number integer
+	flat_number integer,
+	last_comment text
+);
+
+-- system tikcet_comments
+
+CREATE TABLE IF NOT EXISTS ticket_comments (
+	comment_id serial PRIMARY KEY,
+	ticket_id integer NOT NULL REFERENCES tickets ON DELETE CASCADE,
+	oper_id integer REFERENCES operators ON DELETE SET NULL,
+	time_created timestamptz NOT NULL DEFAULT now(),
+	comment_text text NOT NULL
 );
 
 -- system.user_contact_types
@@ -759,21 +784,18 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION services_get_addr(n_house_id integer, n_flat integer) RETURNS varchar AS $$
+CREATE OR REPLACE FUNCTION format_postaddr(vc_street_guid text, vc_house_number text, vc_flat_number text) RETURNS varchar AS $$
 DECLARE
 	m_address varchar;
-	m_house addr_houses%rowtype;
 	m_fias addr_fias%rowtype;
 	m_guid varchar;
 	i integer;
 BEGIN
-	IF n_house_id IS NULL THEN
+	IF vc_street_guid IS NULL THEN
 		RETURN '';
 	END IF;
 
-	SELECT * INTO m_house FROM addr_houses WHERE house_id = n_house_id;
-
-	m_guid := m_house.street_guid;
+	m_guid := vc_street_guid;
 	m_address := '';
 	FOR i IN 1..2 LOOP
 		SELECT * INTO m_fias FROM addr_fias WHERE guid = m_guid;
@@ -784,12 +806,26 @@ BEGIN
 		m_guid := m_fias.parent_guid;
 	END LOOP;
 
-	m_address := m_address || 'д. ' || m_house.house_number;
-	IF n_flat IS NOT NULL THEN
-		m_address := m_address || ', кв. ' || n_flat;
+	m_address := m_address || 'д. ' || vc_house_number;
+	IF vc_flat_number IS NOT NULL THEN
+		m_address := m_address || ', кв. ' || vc_flat_number;
 	END IF;
 
 	RETURN m_address;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION services_get_addr(n_house_id integer, n_flat integer) RETURNS varchar AS $$
+DECLARE
+	m_house addr_houses%rowtype;
+BEGIN
+	IF n_house_id IS NULL THEN
+		RETURN '';
+	END IF;
+
+	SELECT * INTO m_house FROM addr_houses WHERE house_id = n_house_id;
+
+	RETURN system.format_postaddr(m_house.street_guid, m_house.house_number, n_flat::text);
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

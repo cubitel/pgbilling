@@ -19,6 +19,14 @@ CREATE OR REPLACE VIEW services AS
 CREATE OR REPLACE VIEW sessions AS
 	SELECT * FROM system.sessions;
 
+-- network.pon_ont
+
+CREATE OR REPLACE VIEW pon_ont AS
+	SELECT ont_serial, ont_type, ont_state,
+		devices.device_id, device_ip, device_port
+	FROM system.pon_ont
+	LEFT JOIN system.devices ON devices.device_id = pon_ont.device_id;
+
 -- network.users
 
 CREATE OR REPLACE VIEW users AS

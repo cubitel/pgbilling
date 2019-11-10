@@ -81,6 +81,9 @@ function switchToMainView()
 					submenu: [{
 						id: 'map',
 						value: "Карта сети"
+					},{
+						id: 'ponONT',
+						value: "Устройства PON"
 					}]
 				},{
 					value: "Отчеты",
@@ -89,7 +92,7 @@ function switchToMainView()
 						value: "Платежи по дням"
 					},{
 						id: 'report-invoices',
-						value: "Списания по дням"
+						value: "Отчет по услугам"
 					}]
 				}],
 				on: {
@@ -160,7 +163,7 @@ function wsMessage(evt)
 	if (msg.id) {
 		for (var i in wscallback) {
 			if (wscallback[i].sequence == msg.id) {
-				wscallback[i].func(msg.response);
+				if (!msg.error) wscallback[i].func(msg.response);
 				wscallback.splice(i, 1);
 				break;
 			}
@@ -194,6 +197,19 @@ function wsMessage(evt)
 		return;
 	}
 
+}
+
+function sendRequest(request)
+{
+	return new Promise(function(resolve, reject) {
+		wsSendMessage(request, function(response) {
+			if (response.error) {
+				return reject(new Error(response.error));
+			} else {
+				return resolve(response);
+			}
+		});
+	});
 }
 
 function parseSelectResponse(resp)
@@ -246,6 +262,7 @@ function openPage(id, params)
 
 function init()
 {
+	webix.i18n.setLocale("ru-RU");
 	webix.protoUI({name: "ui-tab-content"}, webix.IdSpace, webix.ui.layout);
 
 	webix.type(webix.ui.tree, {
