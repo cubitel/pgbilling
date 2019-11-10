@@ -29,10 +29,6 @@ webix.i18n.locales["de-DE"] = {
 		today: "Heute"
     },
 
-    controls:{
-    	select:"Wählen",
-    	invalidMessage:"Irreguläre Eingabewert"
-    },
     dataExport:{
 		page:"Seite",
 		of:"aus"
@@ -81,7 +77,8 @@ webix.i18n.locales["de-DE"] = {
         italic: "Kursiv"
     },
     combo:{
+    	select:"Auswählen",
         selectAll:"Alles auswählen",
-        unselectAll:"Alles wiederufen"
+        unselectAll:"Alles widerrufen"
     }
 };
