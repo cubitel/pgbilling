@@ -4,6 +4,45 @@
 
 SET SCHEMA 'system';
 
+-- system.acl_privileges
+
+CREATE TABLE IF NOT EXISTS acl_privileges (
+	priv_name text NOT NULL PRIMARY KEY,
+	description text NOT NULL,
+	default_group_ids integer[]
+);
+
+COMMENT ON TABLE acl_privileges IS 'Список существующих в системе привилегий';
+
+-- system.acl_groups
+
+CREATE TABLE IF NOT EXISTS acl_groups (
+	group_id integer PRIMARY KEY,
+	parent_group_id integer REFERENCES acl_groups(group_id),
+	group_name text NOT NULL,
+	priv_granted text[] NOT NULL DEFAULT '{}',
+	priv_revoked text[] NOT NULL DEFAULT '{}',
+	UNIQUE(group_name)
+);
+
+-- default system acl groups
+
+CREATE OR REPLACE FUNCTION acl_privileges_insert() RETURNS trigger AS $$
+BEGIN
+	UPDATE system.acl_groups SET priv_granted = priv_granted || NEW.priv_name WHERE ARRAY[group_id] && NEW.default_group_ids;
+	RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS insert ON acl_privileges;
+CREATE TRIGGER insert AFTER INSERT ON acl_privileges
+	FOR EACH ROW EXECUTE PROCEDURE acl_privileges_insert();
+
+INSERT INTO acl_groups (group_id, parent_group_id, group_name) VALUES(1, NULL, 'Операторы') ON CONFLICT DO NOTHING;
+INSERT INTO acl_groups (group_id, parent_group_id, group_name) VALUES(2, 1, 'Администраторы') ON CONFLICT DO NOTHING;
+
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('change_password', 'Смена пароля оператора', '{1}') ON CONFLICT DO NOTHING;
+
 -- system.users
 
 CREATE TABLE IF NOT EXISTS users (
@@ -33,6 +72,9 @@ CREATE TABLE IF NOT EXISTS operators (
     login varchar(64) NOT NULL,
     pass varchar(64),
     totp_key varchar(128),
+    acl_groups integer[] NOT NULL DEFAULT '{}',
+	priv_granted text[] NOT NULL DEFAULT '{}',
+	priv_revoked text[] NOT NULL DEFAULT '{}',
     UNIQUE(login)
 );
 
@@ -374,7 +416,8 @@ CREATE TABLE IF NOT EXISTS radius_attrs (
 	service_state integer NOT NULL,
 	attr_name varchar(128) NOT NULL,
 	attr_value varchar(128) NOT NULL,
-	in_coa integer NOT NULL DEFAULT 0
+	in_coa integer NOT NULL DEFAULT 0,
+	nas_ip text NOT NULL DEFAULT '%'
 );
 
 -- system.service_states
@@ -387,6 +430,7 @@ CREATE TABLE IF NOT EXISTS service_state_names (
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(1, 'Активно') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(2, 'Заблокировано') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(3, 'Новый') ON CONFLICT DO NOTHING;
+INSERT INTO service_state_names (service_state, service_state_name) VALUES(4, 'Приостановлено') ON CONFLICT DO NOTHING;
 
 -- system.service_types
 
@@ -471,6 +515,11 @@ BEGIN
 			UPDATE system.services SET service_state = 2, invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
 		END IF;
 
+		IF m_service.service_state = 4 THEN
+			-- Service suspended
+			UPDATE system.services SET invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
+		END IF;
+
 		IF extract(month from m_service.invoice_start) != extract(month from now()) OR m_service.next_tarif IS NOT NULL THEN
 			-- New month: create new log line (set invoice_start to null to force it)
 			m_service.invoice_start := NULL;
@@ -485,7 +534,9 @@ BEGIN
 			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
 		END IF;
 
-		IF m_account.balance >= 1 OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL THEN
+		IF m_service.service_state != 4 AND
+			(m_account.balance >= 1 OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL)
+		THEN
 			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr)
 				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
 			UPDATE system.services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),

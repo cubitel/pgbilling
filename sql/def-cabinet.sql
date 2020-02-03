@@ -85,14 +85,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION account_promise_payment(n_account_id integer) RETURNS integer AS $$
 DECLARE
-	m_user_id integer;
+	m_account system.accounts%rowtype;
 	m_service_id integer;
 BEGIN
-	SELECT user_id INTO m_user_id FROM system.accounts
+	SELECT * INTO m_account FROM system.accounts
 		WHERE user_id IN (SELECT user_id FROM sessions)
 		AND account_id = n_account_id;
 	IF NOT FOUND THEN
 		RETURN 0;
+	END IF;
+
+	IF m_account.promised_count > 7 THEN
+		RAISE EXCEPTION 'Превышено максимальное количество неоплаченных обещанных платежей.';
 	END IF;
 
 	UPDATE system.accounts SET promised_end_date = now() + interval '1 day', promised_count = promised_count + 1

@@ -19,6 +19,7 @@ BEGIN
         oper_id integer NOT NULL
     );
     INSERT INTO sessions (oper_id) VALUES(m_oper_id);
+	GRANT SELECT ON sessions TO admin;
 
 
     CREATE TEMPORARY VIEW accounts AS

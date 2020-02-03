@@ -76,7 +76,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION rad_attrs(n_service_id integer)
+CREATE OR REPLACE FUNCTION rad_attrs(n_service_id integer, vc_nas varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 DECLARE
 	m_service system.services%rowtype;
@@ -103,7 +103,8 @@ BEGIN
 		SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 	END IF;
 
-	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE service_state = m_service.service_state OR service_state = -1
+	FOR m_attr IN SELECT * FROM system.radius_attrs
+		WHERE (service_state = m_service.service_state OR service_state = -1) AND vc_nas LIKE nas_ip
 	LOOP
 		attribute := m_attr.attr_name;
 		value := m_attr.attr_value;
@@ -126,6 +127,14 @@ DECLARE
 BEGIN
 	m_port_offset = 0;
 
+	IF substring(vc_remoteid from 1 for 2) = '0x' THEN
+		vc_remoteid = substring(vc_remoteid from 3);
+	END IF;
+	IF substring(vc_circuitid from 1 for 2) = '0x' THEN
+		vc_circuitid = substring(vc_circuitid from 3);
+	END IF;
+
+
 	IF substring(vc_remoteid from 1 for 4) = '0006' THEN
 		m_device = substring(vc_remoteid from 5 for 4) || '.' || substring(vc_remoteid from 9 for 4) || '.' || substring(vc_remoteid from 13 for 4);
 		SELECT device_id, port_offset INTO n_device_id, m_port_offset FROM system.devices WHERE device_mac = m_device::macaddr;
@@ -143,7 +152,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION rad_reply(vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
+CREATE OR REPLACE FUNCTION rad_reply(vc_nas varchar, vc_username varchar, vc_remoteid varchar, vc_circuitid varchar)
 RETURNS TABLE(id integer, username varchar, attribute varchar, value varchar, op varchar) AS $$
 DECLARE
 	m_service system.services%rowtype;
@@ -155,6 +164,8 @@ DECLARE
 	m_device_id integer;
 	m_port_number varchar;
 	m_interface text;
+	m_netmask text;
+	m_gateway text;
 BEGIN
 	IF vc_remoteid = '' THEN
 		-- login/password scheme
@@ -192,7 +203,7 @@ BEGIN
 			END IF;
 			-- Create default service if not exist
 			INSERT INTO system.services (user_id, account_id, service_type, service_name, service_state, port_id, inet_speed)
-				VALUES(1, 1, 1, m_device.device_ip::varchar || '/' || m_port_number, 3, m_port_id, 0);
+				VALUES(1, 1, 1, host(m_device.device_ip) || '/' || m_port_number, 3, m_port_id, 0);
 			SELECT * INTO m_service FROM system.services WHERE port_id = m_port_id;
 			IF NOT FOUND THEN
 				RETURN;
@@ -207,14 +218,11 @@ BEGIN
 	op := ':=';
 	username := vc_username;
 
-	m_interface = '';
-
 	SELECT ip_address INTO m_ip FROM system.services_addr WHERE service_id = m_service.service_id AND family(ip_address) = 4;
 	IF FOUND THEN
 		attribute := 'Framed-IP-Address';
 		value := m_ip;
 		RETURN NEXT;
-		SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 	ELSE
 		IF m_network IS NOT NULL THEN
 			SELECT system.get_free_ip(m_network.addr_start, m_network.addr_stop) INTO m_ip;
@@ -222,17 +230,25 @@ BEGIN
 			attribute := 'Framed-IP-Address';
 			value := m_ip;
 			RETURN NEXT;
-			SELECT interface_name INTO m_interface FROM system.networks WHERE network_addr >> m_ip;
 		END IF;
 	END IF;
 
-	FOR m_attr IN SELECT * FROM system.radius_attrs WHERE (service_state = m_service.service_state OR service_state = -1) AND in_coa = 0
+	IF m_ip IS NOT NULL THEN
+		SELECT interface_name, netmask(network_addr), host(addr_start-1) INTO m_interface, m_netmask, m_gateway
+			FROM system.networks WHERE network_addr >> m_ip;
+	END IF;
+
+	FOR m_attr IN SELECT * FROM system.radius_attrs
+		WHERE (service_state = m_service.service_state OR service_state = -1) AND in_coa = 0 AND vc_nas LIKE nas_ip
+		ORDER BY attr_id
 	LOOP
 		attribute := m_attr.attr_name;
 		value := m_attr.attr_value;
 		SELECT replace(value, '{kbps}', m_service.inet_speed::varchar) INTO value;
 		SELECT replace(value, '{Bps}', (m_service.inet_speed * 125)::varchar) INTO value;
 		SELECT replace(value, '{interface}', coalesce(m_interface, '')) INTO value;
+		SELECT replace(value, '{netmask}', coalesce(m_netmask, '')) INTO value;
+		SELECT replace(value, '{gateway}', coalesce(m_gateway, '')) INTO value;
 		RETURN NEXT;
 	END LOOP;
 
@@ -249,6 +265,9 @@ DECLARE
 	m_class_array varchar[];
 	m_service_id integer;
 BEGIN
+	IF substring(vc_class from 1 for 2) = '0x' THEN
+		vc_class = substring(vc_class from 3);
+	END IF;
 	SELECT convert_from(decode(vc_class, 'hex'), 'utf-8') INTO m_class;
 
 	m_service_id = NULL;
