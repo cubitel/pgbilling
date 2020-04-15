@@ -42,9 +42,13 @@ function switchToLoginView()
 	webix.UIManager.setFocus($$("loginForm"));
 }
 
-function switchToMainView()
+async function switchToMainView()
 {
 	document.getElementById("divMain").innerHTML = "";
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'sessions'}});
+	var oper_id = resp.rows[0].oper_id;
+	var not_admin = (oper_id == 10) || (oper_id == 14) || (oper_id == 15);
 
 	webix.ui({
 		id: "mainView",
@@ -65,16 +69,20 @@ function switchToMainView()
 					value: "Абоненты",
 					submenu: [{
 						id: 'tickets',
-						value: "Заявки"
+						value: "Заявки",
+						disabled: not_admin
 					},{
 						id: 'services',
-						value: "Услуги"
+						value: "Услуги",
+						disabled: not_admin
 					},{
 						id: 'sessions',
-						value: "Активные сессии"
+						value: "Активные сессии",
+						disabled: not_admin
 					},{
 						id: 'payments',
-						value: "Платежи"
+						value: "Платежи",
+						disabled: not_admin
 					}]
 				},{
 					value: "Сеть",
@@ -89,10 +97,12 @@ function switchToMainView()
 					value: "Отчеты",
 					submenu: [{
 						id: 'report-payments',
-						value: "Платежи по дням"
+						value: "Платежи по дням",
+						disabled: not_admin
 					},{
 						id: 'report-invoices',
-						value: "Отчет по услугам"
+						value: "Отчет по услугам",
+						disabled: not_admin
 					}]
 				}],
 				on: {

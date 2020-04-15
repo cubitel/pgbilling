@@ -711,6 +711,13 @@ initPage("userSummary", "Абонент", {
 				type: 'icon',
 				icon: 'refresh',
 				autowidth: true
+			},{
+				view: 'button',
+				id: 'password',
+				label: "Пароль",
+				type: 'icon',
+				icon: 'key',
+				autowidth: true
 			}]
 		},{
 			view: 'template',
@@ -741,9 +748,9 @@ initPage("userSummary", "Абонент", {
 			elements: [{
 				view: 'button',
 				id: 'status',
-				label: "Статус порта",
+				label: "Текущее состояние",
 				type: 'icon',
-				icon: 'refresh',
+				icon: 'signal',
 				autowidth: true
 			}]
 		},{
@@ -770,10 +777,12 @@ initPage("userSummary", "Абонент", {
 				for (var i in summary.accounts) {
 					var account = summary.accounts[i];
 					txt += "Лицевой счет: " + account.account_number + "\n";
+					txt += "Дата создания: " + account.time_created + "\n";
 					txt += "Баланс: " + account.balance + "\n";
 					txt += "\n";
 				}
 
+/*
 				for (var i in summary.services) {
 					var service = summary.services[i];
 
@@ -792,11 +801,15 @@ initPage("userSummary", "Абонент", {
 					if (service.serial_no) {
 						descr += "Серийный №: " + service.serial_no + "<br/>";
 					}
+					if (service.ip_list[0]) {
+						descr += "IP: " + service.ip_list[0] + "<br/>";
+					}
 					rows.push({
 						service_name: service.service_name + "<br/>" + service.service_state_name,
 						summary: descr
 					});
 				}
+*/
 
 				var table = $$(uid).$$("services-list");
 				table.clearAll();
@@ -805,8 +818,22 @@ initPage("userSummary", "Абонент", {
 			});
 		}
 
+
+		var getPassword = function() {
+			wsSendMessage({
+				cmd: 'perform', params: {proc: 'user_get_password', params: [parseInt(params)]}
+			}, function(resp) {
+				var rows = resp.rows;
+				var info = rows[0].user_get_password;
+				alert(info.pass);
+			});
+		}
+
 		$$(uid).$$("refresh").attachEvent("onItemClick", function() {
 			update();
+		});
+		$$(uid).$$("password").attachEvent("onItemClick", function() {
+			getPassword();
 		});
 		$$(uid).$$("services-list").attachEvent("onItemClick", function(id, e, node) {
 			var row = this.getItem(id);
@@ -820,17 +847,152 @@ initPage("userSummary", "Абонент", {
 			}
 			if (row.port_name) {
 				descr += "Порт: " + row.port_name + " / " + row.device_ip +
-				" <a href='/netapi/device/" + row.device_ip + "/ont/" + row.port_name + "/status' target='_blank'>Статус</a>" +
+				" <a href='" + cfgNetapiURL + "device/" + row.device_ip + "/ont/" + row.port_name + "/status' target='_blank'>Статус</a>" +
 				"<br/>";
 			}
 			if (row.serial_no) {
 				descr += "Серийный №: " + row.serial_no + "<br/>";
 			}
+			if (row.ip_list[0]) {
+				descr += "IP: " + row.ip_list[0] + "<br/>";
+			}
 			$$(uid).$$("info").setHTML("<pre>" + descr + "</pre>");
+
+			$$(uid).$$("status").detachEvent("service-list-on-click");
+			$$(uid).$$("status").attachEvent("onItemClick", function() {
+				openPage("userServiceStatus", row.service_id);
+			}, "service-list-on-click");
 		});
 
 		update();
 });
+
+/* User service status */
+
+initPage("userServiceStatus", "Текущее состояние сервиса", undefined, async function(pageui, uid, params) {
+
+	var service_id = parseInt(params);
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'service_sessions', condition: {service_id: service_id}}});
+	var sessions = resp.rows;
+
+	var drawOnline = function() {
+		var cellStartX = 40;
+		var cellStartY = 20;
+		var cellHeight = 14;
+		var cellWidth = 25;
+
+		var ctx = document.getElementById("canvasOnline" + uid).getContext("2d");
+
+		ctx.font = '10px Verdana';
+		ctx.fillStyle = '#000000';
+		ctx.lineWidth = 1;
+
+		ctx.textAlign = 'center';
+		for (var h = 0; h < 24; h++) {
+			ctx.fillText(h, cellStartX + h * cellWidth + cellWidth / 2, cellStartY - 2);
+		}
+
+		ctx.textAlign = 'right';
+		for (var d = 0; d < 7; d++) {
+			var date = new Date();
+			date.setDate(date.getDate() - d);
+			var day = date.getDate() + '.' + (date.getMonth()+1);
+
+			ctx.fillStyle = '#000000';
+			ctx.fillText(day, cellStartX - 2, cellStartY + cellHeight * (d+1) - 2);
+
+			ctx.fillStyle = '#dddddd';
+			for (var h = 0; h < 24; h++) {
+				ctx.fillRect(cellStartX + cellWidth * h, cellStartY + cellHeight * d, cellWidth-1, cellHeight-1);
+			}
+		}
+
+		ctx.lineWidth = 5;
+		for (var i in sessions) {
+			var session = sessions[i];
+
+			ctx.strokeStyle = '#99cc99';
+			if (session.active == 1) ctx.strokeStyle = '#669966';
+
+			for (var d = 0; d < 7; d++) {
+				var timeStart = new Date(session.create_time);
+				var timeEnd = new Date(session.update_time);
+
+				var dateMin = new Date();
+				dateMin.setDate(dateMin.getDate() - d);
+				dateMin.setHours(0, 0, 0, 0);
+				var dateMax = new Date();
+				dateMax.setDate(dateMax.getDate() - d);
+				dateMax.setHours(23, 59, 59, 0);
+
+				if (timeStart > dateMax) continue;
+				if (timeEnd < dateMin) continue;
+
+				if (timeStart < dateMin) timeStart = dateMin;
+				if (timeEnd > dateMax) timeEnd = dateMax;
+
+				var startPos = cellStartX + (timeStart.getHours() * 60 + timeStart.getMinutes()) * cellWidth / 60;
+				var endPos = cellStartX + (timeEnd.getHours() * 60 + timeEnd.getMinutes()) * cellWidth / 60;
+				ctx.moveTo(startPos, cellStartY + d * cellHeight + cellHeight / 2);
+				ctx.lineTo(endPos, cellStartY + d * cellHeight + cellHeight / 2);
+				ctx.stroke();
+			}
+		}
+	}
+
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: "Текущее состояние сервиса",
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formUserServiceStatus",
+			width: 800,
+			height: 400,
+			elements: [{
+				template: "<canvas id='canvasOnline" + uid + "' height='170px' width='700px'></canvas>"
+			},{
+				view: "datatable",
+				id: "service-status-sessions",
+				columns: [{
+					map: '#create_time#',
+					header: "Время подключения",
+					width: 200,
+					sort: 'string',
+					format: function (value) {
+						return webix.i18n.fullDateFormatStr(new Date(value));
+					}
+				},{
+					map: '#update_time#',
+					header: "Время обновления",
+					width: 200,
+					sort: 'string',
+					format: function (value) {
+						return webix.i18n.fullDateFormatStr(new Date(value));
+					}
+				},{
+					map: '#username#',
+					header: "Имя пользователя",
+					fillspace: true,
+				}],
+				select: 'row'
+			}]
+		}
+	});
+
+	var table = $$("service-status-sessions");
+	table.clearAll();
+	table.parse(sessions);
+	table.sort("update_time", "desc", "string");
+
+	drawOnline();
+
+	webix.UIManager.setFocus($$("formUserServiceStatus"));
+});
+
 
 /* Tickets page */
 

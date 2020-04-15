@@ -78,6 +78,14 @@ BEGIN
     GRANT SELECT ON services TO admin;
 
 
+	CREATE TEMPORARY VIEW service_sessions AS
+		SELECT *
+		FROM system.sessions
+		WHERE update_time > (now() - interval '1 month');
+
+    GRANT SELECT ON service_sessions TO admin;
+
+
 	CREATE TEMPORARY VIEW radius_sessions AS
 		SELECT sessions.*, services.service_name, devices.device_ip, device_ports.port_name
 		FROM system.sessions
@@ -291,7 +299,8 @@ BEGIN
 	FOR m_row IN SELECT services.*,
 		system.services_get_addr(services.house_id, flat_number) AS postaddr,
 		service_state_name, service_type_name, t1.tarif_name,
-		port_name, device_ip, device_mac
+		port_name, device_ip, device_mac,
+		array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list
 		FROM system.services
 		LEFT JOIN system.device_ports ON device_ports.port_id = services.port_id
 		LEFT JOIN system.devices ON devices.device_id = device_ports.device_id
@@ -305,6 +314,22 @@ BEGIN
 	m_summary = jsonb_set(m_summary, '{services}', array_to_json(m_list)::jsonb, true);
 
     RETURN m_summary;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION user_get_password(n_user_id integer) RETURNS jsonb AS $$
+DECLARE
+    m_oper_id integer;
+    m_user record;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+	SELECT user_id, user_name, login, pass INTO m_user FROM system.users WHERE user_id = n_user_id;
+
+    RETURN row_to_json(m_user);
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
