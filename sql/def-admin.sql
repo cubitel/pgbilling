@@ -77,6 +77,17 @@ BEGIN
 
     GRANT SELECT ON services TO admin;
 
+	CREATE TEMPORARY VIEW service_states AS
+		SELECT *
+		FROM system.service_state_names;
+
+    GRANT SELECT ON service_states TO admin;
+
+	CREATE TEMPORARY VIEW tarifs AS
+		SELECT *
+		FROM system.tarifs;
+
+    GRANT SELECT ON tarifs TO admin;
 
 	CREATE TEMPORARY VIEW service_sessions AS
 		SELECT *
@@ -333,6 +344,53 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION service_edit(vc_params text) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+    m_params jsonb;
+	m_service_id integer;
+	m_service system.services%rowtype;
+	m_service_name text;
+	m_service_state integer;
+	m_inet_speed integer;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+	m_params = vc_params::jsonb;
+	m_service_id = m_params->>'service_id';
+
+	SELECT * INTO m_service FROM system.services WHERE service_id = m_service_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Сервис не найден';
+	END IF;
+
+	IF m_params ? 'service_name' THEN
+		m_service.service_name = m_params->>'service_name';
+	END IF;
+	IF m_params ? 'service_state' THEN
+		m_service.service_state = m_params->>'service_state';
+	END IF;
+	IF m_params ? 'inet_speed' THEN
+		m_service.inet_speed = m_params->>'inet_speed';
+	END IF;
+	IF m_params ? 'next_tarif' THEN
+		m_service.next_tarif = m_params->>'next_tarif';
+	END IF;
+
+	UPDATE system.services SET
+		service_name = m_service.service_name,
+		service_state = m_service.service_state,
+		inet_speed = m_service.inet_speed,
+		next_tarif = m_service.next_tarif
+		WHERE service_id = m_service_id;
+
+	RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 CREATE OR REPLACE FUNCTION ticket_add(vc_params text) RETURNS integer AS $$
 DECLARE
@@ -473,8 +531,14 @@ BEGIN
 	m_ont_state = m_params->>'ont_state';
 	m_description = m_params->>'description';
 
-	IF (m_ont_next_serial IS NOT NULL) AND (m_ont_next_serial !~ '^[A-Z]{4}[0-9A-F]{8}$') THEN
-		RAISE EXCEPTION 'Неверный формат серийного номера';
+	IF m_ont_next_serial IS NOT NULL THEN
+		IF m_ont_next_serial !~ '^[A-Z]{4}[0-9A-F]{8}$' THEN
+			RAISE EXCEPTION 'Неверный формат серийного номера';
+		END IF;
+		SELECT * INTO m_ont FROM system.pon_ont WHERE ont_serial = m_ont_next_serial;
+		IF FOUND THEN
+			RAISE EXCEPTION 'Новый ONT уже существует';
+		END IF;
 	END IF;
 
 	SELECT * INTO m_ont FROM system.pon_ont WHERE ont_id = m_ont_id;
@@ -486,9 +550,15 @@ BEGIN
 		RAISE EXCEPTION 'ONT удалена';
 	END IF;
 
-	UPDATE system.pon_ont SET ont_state = m_ont_state, ont_next_serial = m_ont_next_serial, description = m_description,
-		api_fail_count = 0, api_fail_message = NULL
-		WHERE ont_id = m_ont_id;
+	IF m_ont_state = 3 AND m_ont.device_id IS NULL THEN
+		-- Instantly mark ONT as deleted if it's not on any device
+		UPDATE system.pon_ont SET ont_state = 4, ont_old_serial = ont_serial, ont_serial = NULL, delete_time = now()
+			WHERE ont_id = m_ont_id;
+	ELSE
+		UPDATE system.pon_ont SET ont_state = m_ont_state, ont_next_serial = m_ont_next_serial, description = m_description,
+			api_fail_count = 0, api_fail_message = NULL
+			WHERE ont_id = m_ont_id;
+	END IF;
 
     RETURN 1;
 END

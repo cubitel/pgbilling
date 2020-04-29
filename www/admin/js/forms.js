@@ -538,6 +538,13 @@ initPage("services", "Услуги", {
 				type: 'icon',
 				icon: 'user',
 				autowidth: true
+			},{
+				view: 'button',
+				id: 'serviceEdit',
+				label: "Изменить",
+				type: 'icon',
+				icon: 'edit',
+				autowidth: true
 			}]
 		},{
 			view: "datatable",
@@ -609,9 +616,101 @@ initPage("services", "Услуги", {
 			openPage("userDelete");
 		});
 
+		$$(uid).$$("services-list").attachEvent("onItemClick", function(id, e, node) {
+			var row = this.getItem(id);
+
+
+			$$(uid).$$("serviceEdit").detachEvent("service-edit-click");
+			$$(uid).$$("serviceEdit").attachEvent("onItemClick", function() {
+				openPage("serviceEdit", row.service_id);
+			}, 'service-edit-click');
+		});
+
 		update();
 	}
 );
+
+/* Edit ONT */
+
+initPage("serviceEdit", "Редактировать сервис", undefined, async function(pageui, uid, params) {
+
+	var service_id = parseInt(params);
+
+	var resp = await sendRequest({cmd: 'select', params: {table: 'services', condition: {service_id: service_id}}});
+	var service = resp.rows[0];
+
+	var states = await sendRequest({cmd: 'select', params: {table: 'service_states'}});
+	var stateOptions = [];
+	stateOptions.push({id: '', value: 'Без изменений (' + service.service_state_name + ')'});
+	for (var i in states.rows) {
+		stateOptions.push({id: states.rows[i].service_state, value: states.rows[i].service_state_name});
+	}
+
+	var tarifs = await sendRequest({cmd: 'select', params: {table: 'tarifs'}});
+	var tarifOptions = [];
+	tarifOptions.push({id: '', value: ''});
+	for (var i in tarifs.rows) {
+		tarifOptions.push({id: tarifs.rows[i].tarif_id, value: tarifs.rows[i].tarif_name});
+	}
+
+	var win = webix.ui({
+		view: 'window',
+		hidden: false,
+		head: service.service_name,
+		move: true,
+		position: 'center',
+		body: {
+			view: 'form',
+			id: "formEditService",
+			width: 700,
+			elements: [
+				{cols: [
+					{rows: [
+						{view: 'fieldset', label: 'Сервис', body: {rows: [
+							{view: 'text', label: 'Имя сервиса', labelPosition: 'top', value: service.service_name, name: 'service_name'},
+							{view: 'select', label: 'Состояние', labelPosition: 'top', options: stateOptions, name: 'service_state'},
+						]}
+					}]},
+					{rows: [
+						{view: 'fieldset', label: 'Тариф', body: {rows: [
+							{view: 'text', label: 'Текущий тариф', labelPosition: 'top', name: 'current_tarif', value: service.tarif_name, disabled: true},
+							{view: 'select', label: 'Изменить тариф на', labelPosition: 'top', options: tarifOptions, name: 'next_tarif', value: service.next_tarif},
+							{view: 'text', label: 'Ограничение скорости, кбит/с', labelPosition: 'top', value: service.inet_speed, name: 'inet_speed', disabled: (service.current_tarif != undefined)},
+						]}
+					}]},
+				]},
+				{view: 'fieldset', label: 'Адрес', body: {rows: [
+					{view: 'text', name: 'postaddr', value: service.postaddr, disabled: true},
+				]}},
+				{
+					view: "button",
+					value: "Сохранить",
+					width: 150,
+					align: "center",
+					click: function() {
+						var p = $$("formEditService").getValues();
+						p.service_id = service_id;
+						if (p.service_state == '') p.service_state = undefined;
+						if (p.next_tarif == '') p.next_tarif = undefined;
+						wsSendMessage({
+							cmd: 'perform',
+							params: {
+								proc: 'service_edit',
+								params: [JSON.stringify(p)]
+							}
+						}, function(resp) {
+							win.close();
+							webix.alert("Данные обновлены.");
+						});
+					}
+				}
+			]
+		}
+	});
+
+	webix.UIManager.setFocus($$("formEditService"));
+});
+
 
 initPage("userAdd", "Добавить пользователя", undefined, function() {
 	var win = webix.ui({
@@ -752,6 +851,13 @@ initPage("userSummary", "Абонент", {
 				type: 'icon',
 				icon: 'signal',
 				autowidth: true
+			},{
+				view: 'button',
+				id: 'serviceEdit',
+				label: "Изменить",
+				type: 'icon',
+				icon: 'edit',
+				autowidth: true
 			}]
 		},{
 			view: 'template',
@@ -858,10 +964,14 @@ initPage("userSummary", "Абонент", {
 			}
 			$$(uid).$$("info").setHTML("<pre>" + descr + "</pre>");
 
-			$$(uid).$$("status").detachEvent("service-list-on-click");
+			$$(uid).$$("status").detachEvent("user-service-status-click");
 			$$(uid).$$("status").attachEvent("onItemClick", function() {
 				openPage("userServiceStatus", row.service_id);
-			}, "service-list-on-click");
+			}, "user-service-status-click");
+			$$(uid).$$("serviceEdit").detachEvent("user-service-edit-click");
+			$$(uid).$$("serviceEdit").attachEvent("onItemClick", function() {
+				openPage("serviceEdit", row.service_id);
+			}, "user-service-edit-click");
 		});
 
 		update();
