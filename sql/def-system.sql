@@ -353,7 +353,8 @@ CREATE OR REPLACE RULE insert_notify AS
 CREATE TABLE IF NOT EXISTS pon_ont_types (
 	ont_type serial PRIMARY KEY,
 	ont_type_name text NOT NULL,
-	ont_profile text
+	ont_profile text,
+	ont_default_services jsonb
 );
 
 COMMENT ON TABLE pon_ont_types IS 'Модели ONT';
@@ -674,7 +675,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 	division_id integer REFERENCES divisions,
 	location public.geometry(Point, 4326),
 	flat_number integer,
-	last_comment text
+	last_comment text,
+	create_oper_id integer REFERENCES operators(operator_id) ON DELETE SET NULL
 );
 
 -- system tikcet_comments
@@ -682,7 +684,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE TABLE IF NOT EXISTS ticket_comments (
 	comment_id serial PRIMARY KEY,
 	ticket_id integer NOT NULL REFERENCES tickets ON DELETE CASCADE,
-	oper_id integer REFERENCES operators ON DELETE SET NULL,
+	oper_id integer REFERENCES operators(operator_id) ON DELETE SET NULL,
 	time_created timestamptz NOT NULL DEFAULT now(),
 	comment_text text NOT NULL
 );

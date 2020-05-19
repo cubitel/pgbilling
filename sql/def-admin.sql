@@ -115,11 +115,13 @@ BEGIN
 			addr_fias.off_name || ' ' || addr_fias.short_name AS street_name,
 			system.format_postaddr(tickets.street_guid, tickets.house_number, tickets.flat_number::text) AS postaddr,
 			(select round(ST_DistanceSphere(addr_houses.location, tickets.location)) AS dist from addr_houses order by dist limit 1),
-			ST_AsGeoJson(tickets.location) AS geopoint
+			ST_AsGeoJson(tickets.location) AS geopoint,
+			operators.operator_name AS create_oper_name
 		FROM system.tickets
 		LEFT JOIN system.ticket_types ON ticket_types.ticket_type = tickets.ticket_type
 		LEFT JOIN system.ticket_statuses ON ticket_statuses.ticket_status = tickets.ticket_status
 		LEFT JOIN system.addr_fias ON addr_fias.guid = tickets.street_guid
+		LEFT JOIN system.operators ON operators.operator_id = tickets.create_oper_id
 		WHERE time_completed IS NULL;
 
 	GRANT SELECT ON tickets TO admin;
@@ -386,6 +388,10 @@ BEGIN
 		inet_speed = m_service.inet_speed,
 		next_tarif = m_service.next_tarif
 		WHERE service_id = m_service_id;
+
+	IF m_service.current_tarif IS NOT NULL THEN
+		PERFORM system.services_update_invoice(m_service_id);
+	END IF;
 
 	RETURN 1;
 END
