@@ -6,6 +6,8 @@ function initFramework(section)
 	var callbacks = [];
 	var rnd = Math.random();
 
+	var obj = {};
+
 	var getSocketURL = function () {
 		var host = window.location.host || "127.0.0.1:5000";
 		var proto = "ws:";
@@ -13,10 +15,33 @@ function initFramework(section)
 		return proto + "//" + host + "/ws/" + section;
 	}
 
-	var onstatechange = function() {
+	var showPage = async function (html, params) {
+		try {
+			pageInit = undefined;
+			$('#page').html(html);
+			await pageInit(params);
+		} catch (e) {
+			obj.pageError(e.message);
+		}
 	}
 
-	var obj = {};
+	var formatMoney = function (amount, decimalCount = 2, decimal = ".", thousands = " ") {
+		try {
+			decimalCount = Math.abs(decimalCount);
+			decimalCount = isNaN(decimalCount) ? 2 : decimalCount;
+
+			const negativeSign = amount < 0 ? "-" : "";
+
+			let i = parseInt(amount = Math.abs(Number(amount) || 0).toFixed(decimalCount)).toString();
+			let j = (i.length > 3) ? i.length % 3 : 0;
+
+			return negativeSign + (j ? i.substr(0, j) + thousands : '') + i.substr(j).replace(/(\d{3})(?=\d)/g, "$1" + thousands) + (decimalCount ? decimal + Math.abs(amount - i).toFixed(decimalCount).slice(2) : "");
+		} catch (e) {
+		}
+	}
+
+	var onstatechange = function() {
+	}
 
 	obj.cmd = function (cmd, params) {
 		return new Promise(function(resolve, reject) {
@@ -92,12 +117,12 @@ function initFramework(section)
 	obj.page = function(url, params) {
 		var el = $("#page");
 		el.html("Загрузка...");
-		$.get("pages/" + url + ".html?" + rnd)
+		$.get("pages/" + url + ".html?rnd=" + rnd)
 			.done(function(html) {
-				el.html(html);
+				showPage(html, params);
 			})
 			.fail(function() {
-				el.html("Ошибка загрузки страницы.");
+				obj.pageError("Ошибка загрузки страницы.");
 			});
 	};
 
@@ -106,6 +131,34 @@ function initFramework(section)
 		var tmpl = Handlebars.compile(source);
 		$(dest).html(tmpl(params));
 	};
+
+	obj.pageError = function (text) {
+		$('#page').html('<div class="alert alert-danger"><strong>Ошибка</strong><div><pre>' + text + '</pre></div></div>');
+	}
+
+	moment.locale('ru');
+	Handlebars.registerHelper('df', function(dateTime) {
+		return moment(dateTime).format('D MMM YYYY HH:mm');
+	});
+
+	Handlebars.registerHelper('money', function(amount) {
+		return formatMoney(amount);
+	});
+
+	Handlebars.registerHelper('div', function(arg1, arg2) {
+		return arg1 / arg2;
+	});
+
+	Handlebars.registerHelper('faServiceType', function(type_id) {
+		if (type_id == 1) return 'fa fa-globe-asia';
+		if (type_id == 2) return 'fa fa-tv';
+		return '';
+	});
+
+	Handlebars.registerHelper('faServiceState', function(state_id) {
+		if (state_id == 1) return 'fa fa-check color-green';
+		return 'fa fa-times-circle color-red';
+	});
 
 	return obj;
 }

@@ -1,0 +1,156 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Сервис {{this.service.service_name}} ({{this.service.service_type_name}})</div>
+
+{{#if this.service.postaddr}}<div>Адрес: {{this.service.postaddr}}</div>{{/if}}
+{{#if this.service.inet_speed}}<div>Ограничение скорости: {{div this.service.inet_speed 1000}} Мбит/с</div>{{/if}}
+{{#if this.service.ip_list}}
+	<div>IP Адреса:
+		{{#each this.service.ip_list}}{{#unless @first}}, {{/unless}} {{this}}{{/each}}
+	</div>
+{{/if}}
+
+<br/>
+
+<ul class="nav nav-tabs">
+	<li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tabTarif">Тариф</a></li>
+</ul>
+<div class="tab-content">
+	<div class="tab-pane active" id="tabTarif">
+
+		<br/>
+		<table class="table table-stripped table-hover">
+		<thead class="thead-light">
+		<tr>
+			<th>Тариф</th>
+			<th>Плата</th>
+			<th></th>
+		</tr>
+		</thead>
+		<tr>
+			<td>
+				{{this.service.current_tarif_name}}<br/>
+				{{#if this.service.next_tarif_name}}Запланировано изменение тарифа на {{this.service.next_tarif_name}}{{/if}}
+			</td>
+			<td class="min" style="align: right;">
+				{{money this.service.current_tarif_abon}} <i class="fa fa-ruble-sign"></i>/мес.
+			</td>
+			<td class="min">
+				<button class="btn btn-success" data-toggle="collapse" data-target=".tarifs"><i class="fa fa-edit"></i></button>
+			</td>
+		</tr>
+		{{#each this.options.allowed_tarifs}}
+		<tr class="collapse tarifs">
+			<td>
+				{{this.tarif_name}}<br/>
+				<small>{{this.tarif_description}}</small>
+			</td>
+			<td class="min" style="align: right;">
+				{{money this.abon}} <i class="fa fa-ruble-sign"></i>/мес.
+			</td>
+			<td class="min">
+				<button class="btn btn-primary pageClick" data-click="changeTarif" data-param="{{this.tarif_id}}" data-description="{{this.tarif_name}}"><i class="fa fa-arrow-right"></i></button>
+			</td>
+		</tr>
+		{{/each}}
+
+		{{#if this.service.invoices}}
+		<thead class="thead-light">
+		<tr>
+			<th>Подключенные услуги</th>
+			<th>Плата</th>
+			<th></th>
+		</tr>
+		</thead>
+		{{#each this.service.invoices}}
+		<tr>
+			<td>
+				{{this.invoice_descr}}
+			</td>
+			<td class="min" style="align: right;">
+				{{money this.invoice_abon}} <i class="fa fa-ruble-sign"></i>/мес.
+			</td>
+			<td class="min">
+				<button class="btn btn-danger pageClick" data-click="deleteOption" data-param="{{this.option_id}}" data-description="{{this.invoice_descr}}"><i class="fa fa-trash-alt"></i></button>
+			</td>
+		</tr>
+		{{/each}}
+		{{/if}}
+
+		{{#if this.options.allowed_options}}
+		<thead class="thead-light">
+		<tr>
+			<th>Доступные услуги</th>
+			<th>Плата</th>
+			<th></th>
+		</tr>
+		</thead>
+		{{#each this.options.allowed_options}}
+		<tr>
+			<td>
+				{{this.option_name}}
+			</td>
+			<td class="min" style="align: right;">
+				{{money this.default_abon}} <i class="fa fa-ruble-sign"></i>/мес.
+			</td>
+			<td class="min">
+				<button class="btn btn-primary pageClick" data-click="addOption" data-param="{{this.option_id}}" data-description="{{this.option_name}}"><i class="fa fa-plus"></i></button>
+			</td>
+		</tr>
+		{{/each}}
+		{{/if}}
+
+		</table>
+
+	</div>
+</div>
+
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var service_id = parseInt(params);
+
+	var services = await $$.cmd("select", {table: "services", condition: {service_id: service_id}});
+	var service = services.rows[0];
+
+	var service_tarifs = await $$.cmd("select", {table: "services_tarifs", condition: {service_id: service_id}});
+	var options = service_tarifs.rows[0].options;
+
+	$$.render("#root", "#tmpl-root", {service: service, options: options});
+
+	$('.pageClick').on('click', function (e) {
+		e.preventDefault();
+		const clickEvent = this.getAttribute('data-click');
+		const clickParam = this.getAttribute('data-param');
+		const clickDescription = this.getAttribute('data-description');
+		(async function () {
+			try {
+				if (clickEvent == 'changeTarif') {
+					if (confirm('Изменить тариф на ' + clickDescription + ' ?')) {
+						await $$.cmd('perform', {proc: 'service_change_tarif', params: [{service_id: service_id, tarif_id: parseInt(clickParam)}]});
+						pageInit(params);
+					}
+				}
+				if (clickEvent == 'addOption') {
+					if (confirm('Добавить ' + clickDescription + ' ?')) {
+						await $$.cmd('perform', {proc: 'service_add_option', params: [{service_id: service_id, option_id: parseInt(clickParam)}]});
+						pageInit(params);
+					}
+				}
+				if (clickEvent == 'deleteOption') {
+					if (confirm('Удалить ' + clickDescription + ' ?')) {
+						await $$.cmd('perform', {proc: 'service_delete_option', params: [{service_id: service_id, option_id: parseInt(clickParam)}]});
+						pageInit(params);
+					}
+				}
+			} catch (e) {
+				$$.pageError(e.message);
+			}
+		})();
+	});
+};
+
+</script>

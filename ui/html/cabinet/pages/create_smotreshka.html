@@ -1,0 +1,82 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Подключение услуги: Цифровое ТВ Смотрёшка</div>
+
+<div>Лицевой счёт: {{this.account.account_number}}</div>
+<br/>
+
+<div class="row">
+<div class="col-md-6">
+	<form id="formCreate">
+		<label for="service_name" class="">E-mail</label>
+		<input type="text" id="createServiceName" name="service_name" class="form-control mr-sm-2 mb-2" placeholder="e-mail" required autofocus />
+
+		<label for="tarif_id" class="">Тариф</label>
+		<select id="createServiceTarif" name="tarif_id" class="form-control">
+		{{#each this.tarifs}}
+			<option value="{{this.tarif_id}}">{{this.tarif_name}} ({{money this.abon}}/мес.)</option>
+		{{/each}}
+		</select>
+		<br/>
+
+		<button class="btn btn-primary">Подключить</button>
+	</form>
+</div>
+<div class="col-md-6">
+	<div class="alert alert-info">
+		Укажите ваш адрес электронной почты, который будет использоваться в качестве логина
+		в сервисе Смотрёшка. На этот адрес вам будет выслано письмо с паролем и инструкцией
+		по настройке сервиса.
+	</div>
+</div>
+</div>
+
+</script>
+
+<script id="tmpl-done" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Подключить услуги: Цифровое ТВ Смотрёшка</div>
+<div class="alert alert-success">
+	Услуга подключена.
+	В ближайшее время вам на e-mail будет выслано письмо с учётными данными и инструкцией для
+	пользования услугой цифрового ТВ.
+</div>
+<br>
+<a href="#!/index" class="btn btn-success" role="button"><i class="fa fa-home"></i> На главную</a>
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var account_id = parseInt(params);
+
+	var accounts = await $$.cmd('select', {table: 'accounts', condition: {account_id: account_id}});
+	var account = accounts.rows[0];
+	var tarifs = await $$.cmd('select', {table: 'tarifs', condition: {service_type: 2}});
+
+	$$.render("#root", "#tmpl-root", {
+		config: config,
+		account: account,
+		tarifs: tarifs.rows
+	});
+
+	$('#formCreate').on('submit', function(e) {
+		e.preventDefault();
+		var serviceName = $('#createServiceName').val();
+		var serviceTarif = $('#createServiceTarif').val();
+		(async function () {
+			try {
+				await $$.cmd('perform', {proc: 'create_smotreshka', params: [{
+					account_id: account_id,
+					service_name: serviceName,
+					tarif_id: serviceTarif
+				}]});
+				$$.render('#root', '#tmpl-done', {});
+			} catch (e) {
+				$$.pageError(e.message);
+			}
+		})();
+	});
+};
+
+</script>

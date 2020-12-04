@@ -1,0 +1,85 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Пополнение счёта {{this.account.account_number}}</div>
+
+<div>Баланс: {{money this.account.balance}} <i class="fa fa-ruble-sign"></i></div>
+{{#if this.account.min_payment_amount}}
+<div>Минимальный платёж: {{money this.account.min_payment_amount}} <i class="fa fa-ruble-sign"></i></div>
+{{/if}}
+<br/>
+
+<ul class="nav nav-tabs">
+{{#if this.config.payments.yandex}}
+	<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#yandex">Яндекс.Деньги</a></li>
+{{/if}}
+</ul>
+<div class="tab-content">
+{{#if this.config.payments.yandex}}
+	<div class="tab-pane" id="yandex">
+		<br/>
+		<div class="row">
+		<div class="col-md-6">
+			<form id="formYandex" action="https://money.yandex.ru/eshop.xml">
+				<input type="hidden" name="customerNumber" value="{{this.account.account_number}}" />
+				<input type="hidden" name="shopId" value="{{this.config.payments.yandex.shopId}}" />
+				<input type="hidden" name="scid" value="{{this.config.payments.yandex.scId}}" />
+
+				<label for="phoneOrEmail" class="">Выслать чек на</label>
+				<select name="phoneOrEmail" class="form-control">
+				{{#each this.contacts}}
+					<option value="+7{{this.contact_value}}">Телефон +7{{this.contact_value}}</option>
+				{{/each}}
+				</select>
+				<br/>
+
+				<label for="sum" class="">Сумма к оплате</label>
+				<input type="text" id="sum" name="sum" class="form-control mr-sm-2 mb-2" placeholder="Сумма в рублях" required autofocus />
+
+				<button class="btn btn-primary">Пополнить счёт</button>
+			</form>
+		</div>
+		<div class="col-md-6">
+			<div class="alert alert-info">
+				Для осуществления платежа вы будете перенаправлены на сайт НКО "Яндекс.Деньги", где сможете
+				выбрать удобный для вас способ оплаты (в том числе с помощью банковских карт или через
+				сбербанк-онлайн).
+			</div>
+		</div>
+		</div>
+	</div>
+{{/if}}
+</div>
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var account_id = parseInt(params);
+
+	var accounts = await $$.cmd('select', {table: 'accounts', condition: {account_id: account_id}});
+	var account = accounts.rows[0];
+	var contacts = await $$.cmd('select', {table: 'user_contacts', condition: {contact_type: 1}});
+
+	if (config.payments.hooks && config.payments.hooks.account) {
+		account = config.payments.hooks.account(account);
+	}
+
+	$$.render("#root", "#tmpl-root", {
+		config: config,
+		account: account,
+		contacts: contacts.rows
+	});
+
+	$('#formYandex').on('submit', function(e) {
+		var sum = $('#sum').val();
+		if (account.min_payment_amount && (sum < account.min_payment_amount) ) {
+			e.preventDefault();
+			alert('Сумма платежа меньше минимально допустимой.');
+		}
+	});
+
+	$('.nav-tabs a:first').tab('show');
+};
+
+</script>

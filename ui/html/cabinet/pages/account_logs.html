@@ -1,0 +1,34 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Операции по счёту {{this.account.account_number}}</div>
+<table class="table table-stripped table-hover">
+<thead class="thead-light">
+	<th>Дата/время</th>
+	<th>Описание</th>
+	<th>Сумма</th>
+</thead>
+<tbody>
+{{#each logs}}
+<tr>
+	<td>{{df this.oper_time}}</td>
+	<td>{{this.descr}}</td>
+	<td align="right">{{money this.amount}}</td>
+</tr>
+{{/each}}
+</tbody>
+</table>
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var account_id = parseInt(params);
+
+	var account = await $$.cmd("select", {table: "accounts", condition: {account_id: account_id}});
+	var logs = await $$.cmd("select", {table: "account_logs", condition: {account_id: account_id}, sort: {oper_time: -1}});
+
+	$$.render("#root", "#tmpl-root", {account: account.rows[0], logs: logs.rows});
+};
+
+</script>

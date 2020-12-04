@@ -214,8 +214,12 @@ function doLogin()
 	wsCreate();
 }
 
-function doAccountPay(account)
+function doAccountPay(account, balance)
 {
+	var minAmount = 100;
+	if (balance < -3000) minAmount = 500;
+	if (balance < -10000) minAmount = 1000;
+
 	var win = webix.ui({
 		view: 'window',
 		hidden: false,
@@ -227,18 +231,22 @@ function doAccountPay(account)
 			id: "yandexForm",
 			width: 300,
 			elements: [
-				{view: 'text', label: 'Сумма платежа', labelPosition: 'top', name: 'sum'},
+				{view: 'text', label: 'Сумма платежа (мин ' + minAmount + ' руб.)', labelPosition: 'top', name: 'sum'},
 				{margin: 5, cols: [
 					{
 						view: "button",
 						value: "Оплатить",
 						click: function() {
 							var p = $$("yandexForm").getValues();
-							p.customerNumber = account;
-							p.shopId = cfgYandexShopId;
-							p.scid = cfgYandexScid;
-							p.phoneOrEmail = phoneOrEmail;
-							webix.send("https://money.yandex.ru/eshop.xml", p);
+							if (p.sum < minAmount) {
+								alert('Сумма платежа меньше минимально допустимой.');
+							} else {
+								p.customerNumber = account;
+								p.shopId = cfgYandexShopId;
+								p.scid = cfgYandexScid;
+								p.phoneOrEmail = phoneOrEmail;
+								webix.send("https://money.yandex.ru/eshop.xml", p);
+							}
 						}
 					},
 					{
@@ -343,7 +351,7 @@ function init()
 									"<div class='balance'>" + data.balance + "</div>" +
 									"<div class='balance-desc'>Баланс, руб.</div>" +
 									"<div class='buttons'>" +
-									"<a class='button' href='javascript:doAccountPay(\"" + data.account_number + "\");'><span class='webix_icon fa-plus'></span>Пополнить счет</a>" +
+									"<a class='button' href='javascript:doAccountPay(\"" + data.account_number + "\", " + data.balance + ");'><span class='webix_icon fa-plus'></span>Пополнить счет</a>" +
 									"<a class='button' href='javascript:doAccountPromise(\"" + data.account_id + "\");'><span class='webix_icon fa-plus-square'></span>Обещанный платеж</a>" +
 									"</div>";
 								return html;

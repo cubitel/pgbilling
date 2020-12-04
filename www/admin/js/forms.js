@@ -646,7 +646,7 @@ initPage("serviceEdit", "Редактировать сервис", undefined, as
 		stateOptions.push({id: states.rows[i].service_state, value: states.rows[i].service_state_name});
 	}
 
-	var tarifs = await sendRequest({cmd: 'select', params: {table: 'tarifs'}});
+	var tarifs = await sendRequest({cmd: 'select', params: {table: 'tarifs', condition: {service_type: service.service_type}}});
 	var tarifOptions = [];
 	tarifOptions.push({id: '', value: ''});
 	for (var i in tarifs.rows) {
@@ -1137,7 +1137,7 @@ initPage("tickets", "Заявки", {
 			},{
 				map: '#ticket_type_name#',
 				header: ["Тип", {content:"selectFilter"}],
-				width: 200
+				width: 120
 			},{
 				map: '#ticket_status_name#',
 				header: ["Статус", {content:"selectFilter"}],
@@ -1151,16 +1151,11 @@ initPage("tickets", "Заявки", {
 			},{
 				map: '#phone#',
 				header: ["Телефон", {content:"textFilter"}],
-				width: 150
-			},{
-				map: '#dist#',
-				header: ["Расстояние", {content:"numberFilter"}],
-				width: 100,
-				sort: 'int'
+				width: 110
 			},{
 				map: '#last_comment#',
 				header: ["Комментарий", {content:"textFilter"}],
-				width: 350
+				width: 270
 			}],
 			select: 'row',
 			on: {
@@ -1275,6 +1270,7 @@ initPage("ticketEdit", "Редактировать заявку", undefined, asy
 			elements: [
 				{view: 'select', label: 'Статус заявки', options: statusOptions, value: ticket.ticket_status, name: 'ticket_status'},
 				{view: 'textarea', type: 'text', label: 'Краткий комментарий', labelPosition: 'top', height: 100, value: ticket.last_comment, name: 'comment'},
+				{view: 'text', label: 'Создан', labelPosition: 'top', value: ticket.create_oper_name, disabled: true},
 				{
 					view: "button",
 					value: "Сохранить",

@@ -117,6 +117,13 @@ COMMENT ON COLUMN accounts.user_id IS 'Идентификатор абонент
 COMMENT ON COLUMN accounts.account_number IS 'Номер лицевого счета';
 COMMENT ON COLUMN accounts.balance IS 'Баланс лицевого счета';
 
+-- system.cash_flows
+
+CREATE TABLE IF NOT EXISTS cash_flows (
+	cash_flow_type SERIAL PRIMARY KEY,
+	cash_flow_name text NOT NULL
+);
+
 -- system.account_logs
 
 CREATE TABLE IF NOT EXISTS account_logs (
@@ -125,7 +132,8 @@ CREATE TABLE IF NOT EXISTS account_logs (
     account_id integer NOT NULL REFERENCES accounts,
     oper_time timestamp NOT NULL,
     amount numeric(10,2) NOT NULL,
-    descr varchar(128) NOT NULL
+    descr varchar(128) NOT NULL,
+    cash_flow_type integer REFERENCES cash_flows
 );
 
 COMMENT ON TABLE account_logs IS 'Движения по лицевым счетам';
@@ -257,6 +265,15 @@ CREATE TABLE IF NOT EXISTS device_models (
 	model_name varchar(128) NOT NULL
 );
 
+-- system.vlans
+
+CREATE TABLE IF NOT EXISTS vlans (
+	vlan_id serial PRIMARY KEY,
+	vlan_tag integer NOT NULL,
+	vlan_name text NOT NULL,
+	UNIQUE(vlan_tag)
+);
+
 -- system.networks
 
 CREATE TABLE IF NOT EXISTS networks (
@@ -301,6 +318,26 @@ CREATE TABLE IF NOT EXISTS divisions (
 
 COMMENT ON TABLE divisions IS 'Отделы предприятия';
 
+-- system.service_types
+
+CREATE TABLE IF NOT EXISTS service_types (
+	service_type integer PRIMARY KEY,
+	service_type_name varchar(128) NOT NULL
+);
+
+INSERT INTO service_types (service_type, service_type_name) VALUES(1, 'Доступ в интернет') ON CONFLICT DO NOTHING;
+INSERT INTO service_types (service_type, service_type_name) VALUES(2, 'Цифровое ТВ') ON CONFLICT DO NOTHING;
+
+-- system.tarif_calc_types
+
+CREATE TABLE IF NOT EXISTS tarif_calc_types (
+	calc_type_id integer PRIMARY KEY,
+	calc_type_name text NOT NULL
+);
+
+INSERT INTO tarif_calc_types (calc_type_id, calc_type_name) VALUES(1, 'Пропорционально точному времени') ON CONFLICT DO NOTHING;
+INSERT INTO tarif_calc_types (calc_type_id, calc_type_name) VALUES(2, 'По количеству суток') ON CONFLICT DO NOTHING;
+
 -- system.tarifs
 
 CREATE TABLE IF NOT EXISTS tarifs (
@@ -310,7 +347,11 @@ CREATE TABLE IF NOT EXISTS tarifs (
     active integer NOT NULL DEFAULT 1,
     abon numeric(10,2) NOT NULL DEFAULT 0,
     inet_speed integer NOT NULL DEFAULT 0,
-    connect_price numeric(10,2) NOT NULL DEFAULT 0
+    connect_price numeric(10,2) NOT NULL DEFAULT 0,
+    external_id text,
+    tarif_description text,
+    calc_type_id integer NOT NULL DEFAULT 1 REFERENCES tarif_calc_types,
+    service_type integer NOT NULL DEFAULT 1 REFERENCES service_types
 );
 
 COMMENT ON TABLE tarifs IS 'Тарифные планы';
@@ -318,6 +359,18 @@ COMMENT ON COLUMN tarifs.tarif_id IS 'Идентификатор тарифа';
 COMMENT ON COLUMN tarifs.group_id IS 'Группа тарифов';
 COMMENT ON COLUMN tarifs.tarif_name IS 'Наименование тарифа';
 COMMENT ON COLUMN tarifs.active IS 'Признак возможности перехода на тариф';
+
+-- system.tarif_options
+
+CREATE TABLE IF NOT EXISTS tarif_options (
+	option_id serial PRIMARY KEY,
+	option_name text NOT NULL,
+	external_id text,
+	default_abon numeric(10,2) NOT NULL DEFAULT 0,
+	allowed_tarifs integer[] NOT NULL DEFAULT '{}',
+	cash_flow_type integer REFERENCES cash_flows,
+	user_controlled integer NOT NULL DEFAULT 0
+);
 
 -- system.payagents
 
@@ -402,7 +455,9 @@ CREATE TABLE IF NOT EXISTS pon_ont (
 	create_time timestamptz NOT NULL,
 	modify_time timestamptz,
 	delete_time timestamptz,
-	description text
+	description text,
+	current_config_id integer NOT NULL DEFAULT 0,
+	next_config_id integer NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS pon_ont_serial ON pon_ont(ont_serial);
@@ -432,15 +487,6 @@ INSERT INTO service_state_names (service_state, service_state_name) VALUES(1, '�
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(2, 'Заблокировано') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(3, 'Новый') ON CONFLICT DO NOTHING;
 INSERT INTO service_state_names (service_state, service_state_name) VALUES(4, 'Приостановлено') ON CONFLICT DO NOTHING;
-
--- system.service_types
-
-CREATE TABLE IF NOT EXISTS service_types (
-	service_type integer PRIMARY KEY,
-	service_type_name varchar(128) NOT NULL
-);
-
-INSERT INTO service_types (service_type, service_type_name) VALUES(1, 'Доступ в интернет') ON CONFLICT DO NOTHING;
 
 -- system.services
 
@@ -484,44 +530,123 @@ COMMENT ON COLUMN services.current_tarif IS 'Идентификатор теку
 COMMENT ON COLUMN services.next_tarif IS 'Идентификатор следующего тарифного плана';
 COMMENT ON COLUMN services.inet_speed IS 'Ограничение скорости доступа в интернет в кбит/с';
 
+CREATE TABLE IF NOT EXISTS service_invoices (
+	invoice_id SERIAL PRIMARY KEY,
+	service_id integer NOT NULL REFERENCES services ON DELETE CASCADE,
+	option_id integer NOT NULL REFERENCES tarif_options,
+	invoice_active integer NOT NULL DEFAULT 0,
+	invoice_descr text NOT NULL,
+	invoice_abon numeric(10,2) NOT NULL,
+    invoice_start timestamp,
+    invoice_end timestamp,
+    invoice_log_id integer REFERENCES account_logs(log_id),
+    cash_flow_type integer REFERENCES cash_flows
+);
+
 CREATE OR REPLACE FUNCTION services_update_invoice(n_service_id integer) RETURNS void AS $$
 DECLARE
 	m_service system.services%rowtype;
+	m_service_invoice system.service_invoices%rowtype;
 	m_account system.accounts%rowtype;
 	m_tarif system.tarifs%rowtype;
 	m_abon numeric(10,2);
 	m_period_text text;
+	m_notify record;
+	m_end_time timestamp;
+	m_start_time timestamp;
+	m_invoice_start timestamp;
 BEGIN
 	SELECT * INTO m_service FROM system.services WHERE service_id = n_service_id AND current_tarif IS NOT NULL;
 	IF NOT FOUND THEN
 		RETURN;
 	END IF;
 
+	m_end_time = now();
+	m_start_time = m_end_time;
+	IF extract(day from m_end_time) != extract(day from (m_end_time - interval '1 min')) THEN
+		-- Align to midnight
+		m_start_time = date_trunc('day', m_end_time);
+		m_end_time = m_start_time - interval '1 usec';
+	END IF;
+
 	SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
 
 	IF m_service.invoice_start IS NOT NULL THEN
 		SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
-		m_abon := m_tarif.abon * extract(epoch from (now() - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
-		m_period_text := to_char(m_service.invoice_start, 'DD.MM HH24:MI') || ' - ' || to_char(now(), 'DD.MM HH24:MI');
+		--
+		IF m_tarif.calc_type_id = 1 THEN
+			-- Type: Flat
+			m_abon := m_tarif.abon * extract(epoch from (m_end_time - m_service.invoice_start)) / extract(epoch from ((m_service.invoice_start + interval '1 month') - m_service.invoice_start));
+		ELSIF m_tarif.calc_type_id = 2 THEN
+			-- Type: Day count (full or not)
+			m_invoice_start = date_trunc('day', m_service.invoice_start);
+			IF m_service.invoice_end > m_invoice_start THEN
+				-- Don't count day twice if another period closed in that day
+				m_invoice_start = m_invoice_start + interval '1 day';
+			END IF;
+			IF m_end_time > m_invoice_start THEN
+				m_abon := m_tarif.abon * extract(day from ((m_end_time + interval '23:59:59') - m_invoice_start)) / extract(day from ((m_invoice_start + interval '1 month') - m_invoice_start));
+			ELSE
+				m_abon = 0;
+			END IF;
+		ELSE
+			m_abon = 0;
+		END IF;
+		--
+		m_period_text := to_char(m_service.invoice_start, 'DD.MM HH24:MI') || ' - ' || to_char(m_end_time, 'DD.MM HH24:MI');
 		UPDATE system.account_logs
-			SET amount = - m_abon, oper_time = now(),
+			SET amount = - m_abon, oper_time = m_end_time,
 				descr = 'Абонентская плата по тарифу ' || m_tarif.tarif_name || ' [' || m_period_text || ']'
 			WHERE log_id = m_service.invoice_log_id;
+
+		FOR m_service_invoice IN SELECT * FROM system.service_invoices
+			WHERE service_id = m_service.service_id AND invoice_log_id IS NOT NULL
+		LOOP
+			--
+			IF m_tarif.calc_type_id = 1 THEN
+				-- Type: Flat
+				m_abon := m_service_invoice.invoice_abon * extract(epoch from (m_end_time - m_service_invoice.invoice_start)) / extract(epoch from ((m_service_invoice.invoice_start + interval '1 month') - m_service_invoice.invoice_start));
+			ELSIF m_tarif.calc_type_id = 2 THEN
+				-- Type: Day count (full or not)
+				m_invoice_start = date_trunc('day', m_service_invoice.invoice_start);
+				IF m_service_invoice.invoice_end > m_invoice_start THEN
+					-- Don't count day twice if another period closed in that day
+					m_invoice_start = m_invoice_start + interval '1 day';
+				END IF;
+				IF m_end_time > m_invoice_start THEN
+					m_abon := m_service_invoice.invoice_abon * extract(day from ((m_end_time + interval '23:59:59') - m_invoice_start)) / extract(day from ((m_invoice_start + interval '1 month') - m_invoice_start));
+				ELSE
+					m_abon = 0;
+				END IF;
+			ELSE
+				m_abon = 0;
+			END IF;
+			--
+			m_period_text := to_char(m_service_invoice.invoice_start, 'DD.MM HH24:MI') || ' - ' || to_char(m_end_time, 'DD.MM HH24:MI');
+			UPDATE system.account_logs
+				SET amount = - m_abon, oper_time = m_end_time,
+					descr = m_service_invoice.invoice_descr || ' [' || m_period_text || ']'
+				WHERE log_id = m_service_invoice.invoice_log_id;
+		END LOOP;
 
 		-- Get updated balance
 		SELECT * INTO m_account FROM system.accounts WHERE account_id = m_service.account_id;
 
-		IF m_account.balance < 0 AND (m_account.promised_end_date < now() OR m_account.promised_end_date IS NULL) THEN
+		IF m_account.balance < 0 AND (m_account.promised_end_date < m_start_time OR m_account.promised_end_date IS NULL) THEN
 			-- No money -- Close period
-			UPDATE system.services SET service_state = 2, invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
+			UPDATE system.services SET service_state = 2, invoice_start = NULL, invoice_end = m_end_time, invoice_log_id = NULL WHERE service_id = n_service_id;
+			-- Deactivate all tarif options
+			UPDATE system.service_invoices SET invoice_active = 0, invoice_start = NULL, invoice_end = m_end_time, invoice_log_id = NULL WHERE service_id = n_service_id;
 		END IF;
 
 		IF m_service.service_state = 4 THEN
 			-- Service suspended
-			UPDATE system.services SET invoice_start = NULL, invoice_log_id = NULL WHERE service_id = n_service_id;
+			UPDATE system.services SET invoice_start = NULL, invoice_end = m_end_time, invoice_log_id = NULL WHERE service_id = n_service_id;
+			-- Deactivate all tarif options
+			UPDATE system.service_invoices SET invoice_active = 0, invoice_start = NULL, invoice_end = m_end_time, invoice_log_id = NULL WHERE service_id = n_service_id;
 		END IF;
 
-		IF extract(month from m_service.invoice_start) != extract(month from now()) OR m_service.next_tarif IS NOT NULL THEN
+		IF extract(month from m_service.invoice_start) != extract(month from m_start_time) OR m_service.next_tarif IS NOT NULL THEN
 			-- New month: create new log line (set invoice_start to null to force it)
 			m_service.invoice_start := NULL;
 		END IF;
@@ -529,20 +654,34 @@ BEGIN
 
 	IF m_service.invoice_start IS NULL THEN
 		-- Period closed, check if we can start new period
-		IF m_service.next_tarif IS NOT NULL THEN
-			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.next_tarif;
-		ELSE
-			SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
-		END IF;
-
 		IF m_service.service_state != 4 AND
-			(m_account.balance >= 1 OR m_account.promised_end_date > now() OR m_service.invoice_log_id IS NOT NULL)
+			(m_account.balance >= 1 OR m_account.promised_end_date > m_start_time OR m_service.invoice_log_id IS NOT NULL)
 		THEN
+			IF m_service.next_tarif IS NOT NULL THEN
+				SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.next_tarif;
+				-- Set invoice_end to NULL to count this half-day because of new tarif
+				UPDATE system.services SET invoice_end = NULL WHERE service_id = m_service.service_id;
+			ELSE
+				SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = m_service.current_tarif;
+			END IF;
+
+			-- Start new period
+			m_service.invoice_start = m_start_time;
 			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr)
-				VALUES(m_account.user_id, m_account.account_id, now(), 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
-			UPDATE system.services SET invoice_start = now(), invoice_end = NULL, invoice_log_id = lastval(),
+				VALUES(m_account.user_id, m_account.account_id, m_service.invoice_start, 0, 'Абонентская плата по тарифу ' || m_tarif.tarif_name);
+			UPDATE system.services SET invoice_start = m_service.invoice_start, invoice_log_id = lastval(),
 				service_state = 1, inet_speed = m_tarif.inet_speed, current_tarif = m_tarif.tarif_id, next_tarif = NULL
 				WHERE service_id = m_service.service_id;
+			UPDATE system.service_invoices SET invoice_active = 1, invoice_start = m_service.invoice_start
+				WHERE service_id = m_service.service_id;
+
+			FOR m_service_invoice IN SELECT * FROM system.service_invoices
+				WHERE service_id = m_service.service_id AND invoice_start IS NOT NULL AND invoice_log_id IS NULL AND invoice_abon > 0
+			LOOP
+				INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr, cash_flow_type)
+					VALUES(m_account.user_id, m_account.account_id, m_service.invoice_start, 0, m_service_invoice.invoice_descr, m_service_invoice.cash_flow_type);
+				UPDATE system.service_invoices SET invoice_log_id = lastval() WHERE invoice_id = m_service_invoice.invoice_id;
+			END LOOP;
 		END IF;
 	END IF;
 END
@@ -551,12 +690,16 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION services_after_update() RETURNS trigger AS $$
 DECLARE
 	m_session_id bigint;
+	m_notify record;
 BEGIN
-	IF (NEW.service_state != OLD.service_state) OR (NEW.inet_speed != OLD.inet_speed) THEN
+	IF (NEW.service_state != OLD.service_state) OR (NEW.inet_speed != OLD.inet_speed) OR (NEW.current_tarif != OLD.current_tarif) THEN
 		SELECT session_id INTO m_session_id FROM system.sessions WHERE service_id = NEW.service_id AND active = 1;
 		IF FOUND THEN
 			PERFORM pg_notify('radius_coa', m_session_id::text);
 		END IF;
+		-- Send invoice change notification
+		SELECT service_id, service_type INTO m_notify FROM system.services WHERE service_id = NEW.service_id;
+		PERFORM pg_notify('service_invoices_change', row_to_json(m_notify)::text);
 	END IF;
 
 	RETURN NEW;
@@ -566,6 +709,84 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS after_update ON services;
 CREATE TRIGGER after_update AFTER UPDATE ON services
 	FOR EACH ROW EXECUTE PROCEDURE services_after_update();
+
+CREATE OR REPLACE FUNCTION service_invoices_before_insert() RETURNS trigger AS $$
+DECLARE
+	m_service system.services%rowtype;
+	m_option system.tarif_options%rowtype;
+BEGIN
+	SELECT * INTO m_service FROM system.services WHERE service_id = NEW.service_id;
+
+	SELECT * INTO m_option FROM system.tarif_options WHERE option_id = NEW.option_id AND m_service.current_tarif = ANY(allowed_tarifs);
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Указанная тарифная опция не найдена или недопустима для данного тарифа';
+	END IF;
+
+	NEW.invoice_active = 0;
+	NEW.invoice_start = NULL;
+	NEW.invoice_end = NULL;
+	NEW.invoice_log_id = NULL;
+	NEW.invoice_descr = m_option.option_name;
+	NEW.invoice_abon = m_option.default_abon;
+	NEW.cash_flow_type = m_option.cash_flow_type;
+
+	IF m_service.invoice_start IS NOT NULL THEN
+		-- Activate option if parent service is active
+		NEW.invoice_start = now();
+		NEW.invoice_active = 1;
+		IF NEW.invoice_abon > 0 THEN
+			INSERT INTO system.account_logs (user_id, account_id, oper_time, amount, descr, cash_flow_type)
+				VALUES(m_service.user_id, m_service.account_id, NEW.invoice_start, 0, NEW.invoice_descr, NEW.cash_flow_type);
+			NEW.invoice_log_id = lastval();
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS before_insert ON service_invoices;
+CREATE TRIGGER before_insert BEFORE INSERT ON service_invoices
+	FOR EACH ROW EXECUTE PROCEDURE service_invoices_before_insert();
+
+CREATE OR REPLACE FUNCTION service_invoices_before_delete() RETURNS trigger AS $$
+BEGIN
+	IF OLD.invoice_log_id IS NOT NULL THEN
+		PERFORM system.services_update_invoice(OLD.service_id);
+	END IF;
+	RETURN OLD;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS before_delete ON service_invoices;
+CREATE TRIGGER before_delete BEFORE DELETE ON service_invoices
+	FOR EACH ROW EXECUTE PROCEDURE service_invoices_before_delete();
+
+CREATE OR REPLACE FUNCTION service_invoices_after_update() RETURNS trigger AS $$
+DECLARE
+	m_payload record;
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		SELECT service_id, service_type INTO m_payload FROM system.services WHERE service_id = NEW.service_id;
+		PERFORM pg_notify('service_invoices_change', row_to_json(m_payload)::text);
+		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.invoice_active != OLD.invoice_active THEN
+			SELECT service_id, service_type INTO m_payload FROM system.services WHERE service_id = NEW.service_id;
+			PERFORM pg_notify('service_invoices_change', row_to_json(m_payload)::text);
+		END IF;
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+		SELECT service_id, service_type INTO m_payload FROM system.services WHERE service_id = OLD.service_id;
+		PERFORM pg_notify('service_invoices_change', row_to_json(m_payload)::text);
+		RETURN OLD;
+	END IF;
+END
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_update ON service_invoices;
+CREATE TRIGGER after_update AFTER INSERT OR UPDATE OR DELETE ON service_invoices
+	FOR EACH ROW EXECUTE PROCEDURE service_invoices_after_update();
 
 -- system.services_addr
 
@@ -882,6 +1103,33 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION services_get_tarifs(n_service_id integer, n_current_tarif integer) RETURNS jsonb AS $$
+DECLARE
+	m_tarif system.tarifs%rowtype;
+	m_allowed_tarifs jsonb;
+	m_allowed_options jsonb;
+	m_result jsonb;
+BEGIN
+	SELECT * INTO m_tarif FROM system.tarifs WHERE tarif_id = n_current_tarif;
+	IF NOT FOUND THEN
+		RETURN NULL;
+	END IF;
+
+	m_result = '{}'::jsonb;
+
+	SELECT coalesce(json_agg(tarifs.*), '{}') INTO m_allowed_tarifs FROM system.tarifs
+		WHERE group_id = m_tarif.group_id AND group_id != 0 AND active > 0 AND tarif_id != n_current_tarif;
+	m_result = jsonb_set(m_result, '{allowed_tarifs}', m_allowed_tarifs, true);
+
+	SELECT coalesce(json_agg(tarif_options.*), '{}') INTO m_allowed_options FROM system.tarif_options
+		WHERE m_tarif.tarif_id = ANY(allowed_tarifs) AND user_controlled = 1
+		AND NOT (array[option_id] && array(SELECT option_id FROM system.service_invoices WHERE service_id = n_service_id));
+	m_result = jsonb_set(m_result, '{allowed_options}', m_allowed_options, true);
+
+	RETURN m_result;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION generate_password() RETURNS varchar AS $$
 DECLARE
 	m_pass varchar;
@@ -926,7 +1174,8 @@ DECLARE
 	m_service_id integer;
 BEGIN
 	UPDATE sessions SET active = 0 WHERE active = 1 AND update_time < (now() - interval '1 hour');
-	
+	UPDATE accounts SET promised_end_date = NULL WHERE promised_end_date < now();
+
 	FOR m_service_id IN SELECT service_id FROM services WHERE current_tarif IS NOT NULL
 	LOOP
 		PERFORM services_update_invoice(m_service_id);

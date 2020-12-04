@@ -1,0 +1,37 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Обещанный платёж на счёт {{this.account.account_number}}</div>
+
+<div class="alert alert-info">
+	Обещанный платёж дает вам возможность пользоваться услугами при отрицательном балансе в течение 24 часов,
+	чтобы пополнить лицевой счёт через Интернет.
+	При отсутствии оплаты в регистрации очередного обещанного платежа может быть отказано.
+</div>
+
+<button id="doAccountPromise" class="btn btn-success">Принять условия и зарегистрировать обещанный платёж</button>
+
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var account_id = parseInt(params);
+
+	var account = await $$.cmd("select", {table: "accounts", condition: {account_id: account_id}});
+
+	$$.render("#root", "#tmpl-root", {account: account.rows[0]});
+
+	$('#doAccountPromise').on('click', function(e) {
+		(async function () {
+			try {
+				await $$.cmd('perform', {proc: 'account_promise_payment', params: [account.rows[0].account_id]});
+				window.location = '#!/index';
+			} catch (e) {
+				$$.pageError(e.message);
+			}
+		})();
+	});
+};
+
+</script>

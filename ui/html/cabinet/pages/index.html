@@ -1,27 +1,88 @@
-<h3>Главная</h3>
-<div id="services"></div>
+<div id="root"></div>
 
-<script id="tmpl-services" type="text/x-handlebars-template">
-<h3>Услуги</h3>
-<table class="table table-stripped">
-<tbody>
-{{#each rows}}
+<script id="tmpl-root" type="text/x-handlebars-template">
+{{#each accounts}}
+<table class="table table-stripped table-hover">
+<thead class="thead-light">
 <tr>
-<td>
-	<div>{{this.service_name}} ({{this.service_state_name}})</div>
-	<div>{{this.postaddr}}</div>
+<th>
+<div class="row">
+	<div style="font-size: 32px; margin-left: 15px;">
+		{{money this.balance}} <i class="fa fa-ruble-sign"></i>
+	</div>
+	<div class="col" style="font-weight: normal;">
+		Лицевой счёт № {{this.account_number}}<br/>
+		Заказано услуг на сумму {{money this.total_abon}} <i class="fa fa-ruble-sign"></i>/мес.<br/>
+		{{#if this.promised_end_date}}Зарегистрирован обещанный платёж до {{df this.promised_end_date}}<br/>{{/if}}
+	</div>
+</div>
+<div style="padding-top: 10px;">
+	<a href="#!/account_pay:{{this.account_id}}" class="btn btn-success" role="button"><i class="fa fa-ruble-sign"></i> Пополнить счёт</a>
+	<a href="#!/account_promise:{{this.account_id}}" class="btn btn-secondary" role="button"><i class="fa fa-hand-holding-usd"></i> Обещанный платёж</a>
+	<a href="#!/account_logs:{{this.account_id}}" class="btn btn-info" role="button"><i class="fa fa-receipt"></i> Операции по счёту</a>
+	<a href="#!/account_add:{{this.account_id}}" class="btn btn-primary" role="button"><i class="fa fa-plus"></i> Подключение услуг</a>
+</div>
+</th>
+</tr>
+</thead>
+<tbody>
+{{#each this.services}}
+<tr>
+<td style="padding-left: 32px;">
+	<a href="#!/service:{{this.service_id}}" class="blacklink">
+	<div>
+		<span style="color: #0056b3; font-weight: bold;">{{this.service_name}}</span>
+		&nbsp;
+		<i class="{{faServiceType this.service_type}}"></i> {{this.service_type_name}}
+		&nbsp;
+		<i class="{{faServiceState this.service_state}}"></i> {{this.service_state_name}}
+	</div>
+	{{#if this.postaddr}}<div>Адрес: {{this.postaddr}}</div>{{/if}}
+	{{#if this.current_tarif_name}}<div>Тариф: {{this.current_tarif_name}}</div>{{/if}}
+	{{#if this.inet_speed}}<div>Ограничение скорости: {{div this.inet_speed 1000}} Мбит/с</div>{{/if}}
+	{{#if this.invoices}}
+		<div> Услуги: {{#each this.invoices}}{{#unless @first}}, {{/unless}}{{this.invoice_descr}}{{/each}}</div>
+	{{/if}}
+	Абонентская плата {{money this.total_abon}} <i class="fa fa-ruble-sign"></i>/мес.<br/>
+	</a>
 </td>
 </tr>
 {{/each}}
 </tbody>
 </table>
+{{/each}}
 </script>
 
 <script type="text/javascript">
 
-(async function() {
-	var services = await $$.cmd("select", {table: "services"});
-	$$.render("#services", "#tmpl-services", services);
-})();
+async function pageInit () {
+	var accounts = await $$.cmd("select", {table: "accounts"});
+	for (var i in accounts.rows) {
+		var account = accounts.rows[i];
+		var account_total_abon = 0;
+
+		var services = await $$.cmd("select", {table: "services", condition: {account_id: account.account_id}});
+		for (var ii in services.rows) {
+			var service = services.rows[ii];
+			var service_total_abon = 0;
+			if (service.current_tarif_abon) {
+				service_total_abon = parseFloat(service.current_tarif_abon);
+			}
+
+			for (var iii in service.invoices) {
+				service_total_abon += parseFloat(service.invoices[iii].invoice_abon);
+			}
+
+			services.rows[ii].total_abon = service_total_abon;
+			if (service.service_state != 4) {
+				account_total_abon += service_total_abon;
+			}
+		}
+
+		accounts.rows[i].services = services.rows;
+		accounts.rows[i].total_abon = account_total_abon;
+	}
+	$$.render("#root", "#tmpl-root", {accounts: accounts.rows});
+}
 
 </script>

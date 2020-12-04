@@ -1,0 +1,45 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Список каналов сервиса Смотрёшка</div>
+
+<label for="formOption">Пакет каналов:</label><br/>
+<select id="formOption">
+{{#each this.list}}
+	<option value="{{this.id}}">{{this.name}}</option>
+{{/each}}
+</select>
+<br/><br/>
+{{#each this.list}}
+<div id="packet{{this.id}}" class="iptvpacket" style="display: none;">
+	{{#each this.channels}}
+	<div>{{this.name}}</div>
+	{{/each}}
+</div>
+{{/each}}
+
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+
+	$.get('data/smotreshka.json')
+		.done(function (list) {
+			$$.render('#root', '#tmpl-root', {list: list});
+			$('#packet' + $('#formOption').val()).show();
+
+			$('#formOption').on('change', function () {
+				var packetId = $('#formOption').val();
+				$('.iptvpacket').hide();
+				$('#packet' + packetId).show();
+			});
+
+		})
+		.fail(function () {
+			$$.pageError('Не удалось загрузить список каналов');
+		});
+
+};
+
+</script>

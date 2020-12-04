@@ -1,0 +1,94 @@
+<div class="alert alert-secondary">Учётные данные</div>
+
+<ul class="nav nav-tabs">
+	<li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tabPassword">Смена пароля</a></li>
+	<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabLogin">Смена логина</a></li>
+</ul>
+<div class="tab-content">
+	<div class="tab-pane active" id="tabPassword">
+		<br/>
+		<div class="row">
+			<div class="col-md-6">
+				<form id="formPassword">
+					<label for="inputPass1" class="">Новый пароль</label>
+					<input type="password" id="inputPass1" class="form-control" placeholder="Пароль" required autofocus />
+					<br/>
+					<label for="inputPass2" class="">Подтвердите пароль</label>
+					<input type="password" id="inputPass2" class="form-control" placeholder="Пароль" required />
+					<br/>
+					<button class="btn btn-primary">Сменить пароль</button>
+				</form>
+			</div>
+			<div class="col-md-6">
+				<div class="alert alert-info">
+					В пароле можно использовать любые символы.
+					Пароль чувствителен к регистру.
+					При вводе пароля обратите внимание на раскладку клавиатуры.
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="tab-pane" id="tabLogin">
+		<br/>
+		<div class="row">
+			<div class="col-md-6">
+				<form id="formLoginChange">
+					<label for="inputNewLogin" class="">Новый логин</label>
+					<input type="text" id="inputNewLogin" class="form-control" placeholder="Новый логин" required autofocus />
+					<br/>
+					<button class="btn btn-primary">Сменить логин</button>
+				</form>
+			</div>
+			<div class="col-md-6">
+				<div class="alert alert-info">
+					Вы можете изменить логин для входа в личный кабинет.
+					Логин может состоять из букв латинского алфавита и цифр.
+					Использование логина только из цифр не допускается.
+					Также вы всегда можете использовать в качестве логина
+					номер вашего лицевого счёта.
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+
+async function pageInit () {
+	$('#formPassword').on('submit', function(e) {
+		e.preventDefault();
+		(async function() {
+			try {
+				var pass1 = $("#inputPass1").val();
+				var pass2 = $("#inputPass2").val();
+
+				if (pass1 != pass2) throw new Error('Пароли не совпадают!');
+
+				await $$.cmd('perform', {proc: 'user_change_password', params: [pass1]});
+
+				window.location = '#!/index';
+			} catch (e) {
+				$$.pageError(e.message);
+			}
+		})();
+	});
+
+	$('#formLoginChange').on('submit', function(e) {
+		e.preventDefault();
+		(async function() {
+			try {
+				var login = $("#inputNewLogin").val();
+
+				await $$.cmd('perform', {proc: 'user_change_login', params: [login]});
+
+				window.location = '#!/index';
+				sidebar.refresh();
+			} catch (e) {
+				$$.pageError(e.message);
+			}
+		})();
+	});
+}
+
+</script>

@@ -12,16 +12,30 @@
 	.logged-in {
 		display: none;
 	}
-	.wrapper {
-		margin-top: 100px;
-		margin-bottom: 20px;
+	.color-green {
+		color: green;
 	}
-	.form-signin {
-		max-width: 420px;
-		padding: 30px 38px 66px;
-		margin: 0 auto;
-		background-color: #eee;
-		border: 3px dotted rgba(0,0,0,0.1);
+	.color-red {
+		color: red;
+	}
+	.blacklink {
+		display: block;
+		color: #000000;
+		text-decoration: none;
+	}
+	.blacklink:hover {
+		color: #000000;
+		text-decoration: none;
+	}
+	.blacklink:visited {
+		color: #000000;
+	}
+	td,th {
+		width: auto;
+	}
+	td.min {
+		width: 1%;
+		white-space: nowrap;
 	}
 	</style>
 	<!-- JavaScript -->
@@ -29,7 +43,10 @@
 	<script src="/assets/popper.min.js"></script>
 	<script src="/assets/bootstrap.min.js"></script>
 	<script src="/assets/handlebars.js"></script>
+	<script src="/assets/fontawesome.js"></script>
+	<script src="/assets/moment.js"></script>
 	<script src="/assets/framework.js"></script>
+	<script src="config.js"></script>
 	<script src="app.js"></script>
 </head>
 <body>
@@ -38,9 +55,12 @@
 			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar">
 				<span class="navbar-toggler-icon"></span>
 			</button>
-			<a class="navbar-brand" href="#">Личный кабинет</a>
+			<a class="navbar-brand" href="#!/index">Личный кабинет</a>
 			<div class="collapse navbar-collapse" id="navbar">
-				<ul class="logged-in navbar-nav mr-auto">
+				<ul class="logged-in navbar-nav">
+					<li class="nav-item" data-toggle="collapse" data-target=".navbar-collapse.show">
+						<a class="nav-link" href="#!/user_creds"><i class="fa fa-key"></i> Логин / пароль</a>
+					</li>
 				</ul>
 			</div>
 			<ul class="logged-in navbar-nav navbar-right">
@@ -49,22 +69,51 @@
 		</nav>
 	</header>
 	<div class="container-fluid" style="margin-top: 70px">
-		<div class="wrapper">
-		<form id="formLogin" class="form-signin">
-			<h2 class="form-signin-heading">Авторизация</h2>
-			<label for="inputLogin" class="">Логин</label>
-			<input type="text" id="inputLogin" class="form-control" placeholder="Логин" required autofocus>
-			<br/>
-			<label for="inputPassword" class="">Пароль</label>
-			<input type="password" id="inputPassword" class="form-control" placeholder="Пароль" required>
-			<br/>
-			<button id="btnLogin" class="btn btn-lg btn-primary btn-block">Войти</button>
-			<br/>
-			<div id="loginError" style="display: none;" class="alert alert-danger"></div>
-		</form>
+
+		<div class="modal fade" id="loginDialog" role="dialog">
+		<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h4 class="modal-title">Авторизация</h4>
+			</div>
+			<div class="modal-body">
+			<form id="formLogin">
+				<label for="inputLogin" class="">Логин</label>
+				<input type="text" id="inputLogin" class="form-control" placeholder="Логин или номер лицевого счёта" required autofocus>
+				<br/>
+				<label for="inputPassword" class="">Пароль</label>
+				<input type="password" id="inputPassword" class="form-control" placeholder="Пароль" required>
+				<br/>
+				<button id="btnLogin" class="btn btn-lg btn-primary btn-block">Войти</button>
+				<br/>
+				<div id="loginError" style="display: none;" class="alert alert-danger"></div>
+			</form>
+			</div>
 		</div>
-		<div id="page">
 		</div>
+		</div>
+
+		<div class="row">
+			<div id="page" class="col-lg-9">
+			</div>
+			<div id="sidebar" class="col-lg-3">
+			</div>
+		</div>
+
 	</div>
+
+	<script id="tmpl-sidebar" type="text/x-handlebars-template">
+		<div class="alert alert-info">
+			<strong>Абонент</strong><br/>
+			<div><i class="fa fa-key"></i> {{this.user.login}}</div>
+			<div><i class="fa fa-user"></i> {{this.user.user_name}}</div>
+		</div>
+		<div class="alert alert-info">
+			<strong>Оператор</strong><br/>
+			<div><i class="fa fa-user-tie"></i> {{this.config.provider.name}}</div>
+			<div><i class="fa fa-phone"></i> {{this.config.provider.phone}}</div>
+			<div><i class="fa fa-globe-asia"></i> <a href="{{this.config.provider.site}}">{{this.config.provider.site}}</a></div>
+		</div>
+	</script>
 </body>
 </html>

@@ -1,0 +1,46 @@
+<div id="root"></div>
+
+<script id="tmpl-root" type="text/x-handlebars-template">
+<div class="alert alert-secondary">Подключение услуг</div>
+
+<div>Лицевой счёт: {{this.account.account_number}}</div>
+<div>Баланс: {{money this.account.balance}} <i class="fa fa-ruble-sign"></i></div>
+<br/>
+
+{{#if this.config.create.smotreshka}}
+<div>
+	<strong>Смотрёшка</strong><br/>
+
+	<div>
+		Смотрёшка - современное интерактивное телевидение, которое позволяет смотреть любимые телевизионные передачи, фильмы,
+		сериалы на разных устройствах под единым аккаунтом везде, где есть Интернет.
+	</div>
+	<div>
+		Смотрёшка работает на смартфонах и планшетах (iOS и Android), телевизорах с функциями SmartTV и Android TV, ПК и ноутбуках,
+		телевизионных приставках (STB), поддерживает AirPlay и Google Cast. Меняйте устройства во время просмотра и смотрите с того же момента,
+		где остановились.
+	</div>
+
+	<br/>
+	<a href="#!/create_smotreshka:{{this.account.account_id}}" class="btn btn-success" role="button">Подключить</a>
+	<a href="#!/smotreshka_list" class="btn btn-info" role="button">Список каналов</a>
+</div>
+{{/if}}
+
+</script>
+
+<script type="text/javascript">
+
+async function pageInit (params) {
+	var account_id = parseInt(params);
+
+	var account = await $$.cmd("select", {table: "accounts", condition: {account_id: account_id}});
+
+	$$.render("#root", "#tmpl-root", {
+		account: account.rows[0],
+		config: config
+	});
+
+};
+
+</script>
