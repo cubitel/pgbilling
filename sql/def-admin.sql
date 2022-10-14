@@ -8,17 +8,27 @@ SET SCHEMA 'admin';
 
 CREATE OR REPLACE FUNCTION login(vc_login varchar, vc_pass varchar) RETURNS integer AS $$
 DECLARE
-    m_oper_id integer;
+    m_oper system.operators%rowtype;
+    m_priv_list text[];
+    m_group_id integer;
 BEGIN
-    SELECT operator_id INTO m_oper_id FROM system.operators WHERE login = vc_login AND pass = md5(vc_pass);
+    SELECT * INTO m_oper FROM system.operators WHERE login = vc_login AND pass = md5(vc_pass);
     IF NOT FOUND THEN
         RETURN 0;
     END IF;
 
+	m_priv_list = '{}'::text[];
+	FOREACH m_group_id IN ARRAY m_oper.acl_groups
+	LOOP
+		m_priv_list = system.acl_merge_privileges(m_priv_list, system.acl_get_privileges(m_group_id), '{}');
+	END LOOP;
+
     CREATE TEMPORARY TABLE sessions (
-        oper_id integer NOT NULL
+        oper_id integer NOT NULL,
+        priv_list text[] NOT NULL
     );
-    INSERT INTO sessions (oper_id) VALUES(m_oper_id);
+    INSERT INTO sessions (oper_id, priv_list)
+    	VALUES(m_oper.operator_id, system.acl_merge_privileges(m_priv_list, m_oper.priv_granted, m_oper.priv_revoked));
 	GRANT SELECT ON sessions TO admin;
 
 
@@ -65,7 +75,7 @@ BEGIN
         	user_name,
             array(SELECT ip_address FROM system.services_addr WHERE services_addr.service_id = services.service_id) AS ip_list,
             array(SELECT contact_value FROM system.user_contacts WHERE user_contacts.user_id = services.user_id) AS contacts,
-            services_get_addr(services.house_id, flat_number) AS postaddr,
+            system.services_get_addr(services.house_id, flat_number) AS postaddr,
             accounts.balance,
 			ST_AsGeoJson(addr_houses.location) AS geopoint
         FROM system.services
@@ -182,9 +192,9 @@ CREATE OR REPLACE FUNCTION change_password(vc_pass varchar) RETURNS integer AS $
 DECLARE
     m_oper_id integer;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['change_password'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	UPDATE system.operators SET pass = md5(vc_pass) WHERE operator_id = m_oper_id;
@@ -209,9 +219,9 @@ DECLARE
 	m_device_id integer;
 	m_port_id integer;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['service.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -258,9 +268,9 @@ DECLARE
 	m_user_id integer;
 	m_user_login text;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['service.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -290,9 +300,9 @@ DECLARE
     m_row record;
     m_list jsonb[];
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['service.view'];
     IF NOT FOUND THEN
-        RETURN NULL;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	SELECT user_id, user_name, login INTO m_user FROM system.users WHERE user_id = n_user_id;
@@ -356,9 +366,9 @@ DECLARE
 	m_service_state integer;
 	m_inet_speed integer;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['service.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -397,6 +407,34 @@ BEGIN
 END
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION service_delete(vc_params text) RETURNS integer AS $$
+DECLARE
+    m_oper_id integer;
+    m_params jsonb;
+    m_service_id integer;
+    m_service_name text;
+	m_service system.services%rowtype;
+BEGIN
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['service.edit'];
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Доступ закрыт';
+    END IF;
+
+	m_params = vc_params::jsonb;
+	m_service_id = m_params->>'service_id';
+	m_service_name = m_params->>'service_name';
+
+	SELECT * INTO m_service FROM system.services WHERE service_id = m_service_id AND service_name = m_service_name;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Сервис не найден';
+	END IF;
+
+	DELETE FROM system.services WHERE service_id = m_service.service_id;
+
+	RETURN 1;
+END
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 CREATE OR REPLACE FUNCTION ticket_add(vc_params text) RETURNS integer AS $$
 DECLARE
@@ -408,9 +446,9 @@ DECLARE
     m_house_number text;
     m_flat_number integer;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['ticket.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -437,9 +475,9 @@ DECLARE
     m_final_status integer;
     m_comment text;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['ticket.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -473,9 +511,9 @@ CREATE OR REPLACE FUNCTION ticket_delete(n_ticket_id int) RETURNS integer AS $$
 DECLARE
     m_oper_id integer;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['ticket.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	DELETE FROM system.tickets WHERE ticket_id = n_ticket_id;
@@ -494,9 +532,9 @@ DECLARE
 	m_ont_type integer;
 	m_description text;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['pon.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;
@@ -526,9 +564,9 @@ DECLARE
 	m_description text;
 	m_ont system.pon_ont%rowtype;
 BEGIN
-	SELECT oper_id INTO m_oper_id FROM sessions;
+	SELECT oper_id INTO m_oper_id FROM sessions WHERE priv_list && ARRAY['pon.edit'];
     IF NOT FOUND THEN
-        RETURN 0;
+        RAISE EXCEPTION 'Доступ закрыт';
     END IF;
 
 	m_params = vc_params::jsonb;

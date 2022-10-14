@@ -48,7 +48,7 @@ async function switchToMainView()
 
 	var resp = await sendRequest({cmd: 'select', params: {table: 'sessions'}});
 	var oper_id = resp.rows[0].oper_id;
-	var not_admin = (oper_id == 10) || (oper_id == 14) || (oper_id == 15);
+	var priv_list = resp.rows[0].priv_list;
 
 	webix.ui({
 		id: "mainView",
@@ -70,19 +70,19 @@ async function switchToMainView()
 					submenu: [{
 						id: 'tickets',
 						value: "Заявки",
-						disabled: not_admin
+						disabled: !priv_list.includes('ticket.view')
 					},{
 						id: 'services',
 						value: "Услуги",
-						disabled: not_admin
+						disabled: !priv_list.includes('service.view')
 					},{
 						id: 'sessions',
 						value: "Активные сессии",
-						disabled: not_admin
+						disabled: !priv_list.includes('service.view')
 					},{
 						id: 'payments',
 						value: "Платежи",
-						disabled: not_admin
+						disabled: false
 					}]
 				},{
 					value: "Сеть",
@@ -91,18 +91,19 @@ async function switchToMainView()
 						value: "Карта сети"
 					},{
 						id: 'ponONT',
-						value: "Устройства PON"
+						value: "Устройства PON",
+						disabled: !priv_list.includes('pon.view')
 					}]
 				},{
 					value: "Отчеты",
 					submenu: [{
 						id: 'report-payments',
 						value: "Платежи по дням",
-						disabled: not_admin
+						disabled: !priv_list.includes('report.finance')
 					},{
 						id: 'report-invoices',
 						value: "Отчет по услугам",
-						disabled: not_admin
+						disabled: !priv_list.includes('report.finance')
 					}]
 				}],
 				on: {

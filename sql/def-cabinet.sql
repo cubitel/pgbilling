@@ -317,7 +317,7 @@ BEGIN
 		RAISE EXCEPTION 'Сервис с таким e-mail уже существует';
 	END IF;
 
-	SELECT service_id INTO m_service_id FROM system.services WHERE user_id = m_user_id AND service_type = 2;
+	SELECT service_id INTO m_service_id FROM system.services WHERE account_id = m_account_id AND service_type = 2;
 	IF FOUND THEN
 		RAISE EXCEPTION 'Возможно подключение только одного аккаунта';
 	END IF;

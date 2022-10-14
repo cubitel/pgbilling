@@ -42,6 +42,11 @@ INSERT INTO acl_groups (group_id, parent_group_id, group_name) VALUES(1, NULL, '
 INSERT INTO acl_groups (group_id, parent_group_id, group_name) VALUES(2, 1, 'Администраторы') ON CONFLICT DO NOTHING;
 
 INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('change_password', 'Смена пароля оператора', '{1}') ON CONFLICT DO NOTHING;
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('report.finance', 'Просмотр финансовых отчетов', '{2}') ON CONFLICT DO NOTHING;
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('ticket.view', 'Просмотр заявок', '{2}') ON CONFLICT DO NOTHING;
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('ticket.edit', 'Редактирование заявок', '{2}') ON CONFLICT DO NOTHING;
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('service.view', 'Просмотр услуг пользователей', '{2}') ON CONFLICT DO NOTHING;
+INSERT INTO acl_privileges (priv_name, description, default_group_ids) VALUES('service.edit', 'Редактирование услуг пользователей', '{2}') ON CONFLICT DO NOTHING;
 
 -- system.users
 
@@ -985,6 +990,39 @@ CREATE TABLE IF NOT EXISTS user_devices (
 );
 
 -- Functions
+
+CREATE OR REPLACE FUNCTION acl_merge_privileges(vc_priv_list text[], vc_priv_grant text[], vc_priv_revoke text[]) RETURNS text[] AS $$
+DECLARE
+	m_result text[];
+BEGIN
+	SELECT array_agg(x) INTO m_result FROM (
+		SELECT DISTINCT unnest(vc_priv_list || vc_priv_grant) AS x
+	) s WHERE NOT x = ANY(vc_priv_revoke);
+	RETURN coalesce(m_result, '{}'::text[]);
+END
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION acl_get_privileges(n_group_id integer) RETURNS text[] AS $$
+DECLARE
+	m_acl_group system.acl_groups%rowtype;
+	m_priv_list text[];
+BEGIN
+	m_priv_list := '{}'::text[];
+
+	SELECT * INTO m_acl_group FROM system.acl_groups WHERE group_id = n_group_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Не найден указанный список доступа.';
+	END IF;
+	IF m_acl_group.parent_group_id IS NOT NULL THEN
+		SELECT system.acl_get_privileges(m_acl_group.parent_group_id) INTO m_priv_list;
+	END IF;
+
+	SELECT system.acl_merge_privileges(m_priv_list, m_acl_group.priv_granted, m_acl_group.priv_revoked) INTO m_priv_list;
+
+	RETURN m_priv_list;
+END
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION addr_set_location(n_house_id integer, n_lon float, n_lat float) RETURNS void AS $$
 BEGIN
