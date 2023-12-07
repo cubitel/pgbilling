@@ -768,7 +768,7 @@ initPage("userDelete", "Удалить пользователя", undefined, fun
 			id: "formUserDelete",
 			width: 300,
 			elements: [
-				{view: 'text', type: 'text', label: 'Логин пользователя', labelPosition: 'top', name: 'user_login'},
+				{view: 'text', type: 'text', label: 'Имя пользователя', labelPosition: 'top', name: 'user_login'},
 				{
 					view: "button",
 					value: "Удалить",
@@ -779,7 +779,7 @@ initPage("userDelete", "Удалить пользователя", undefined, fun
 						wsSendMessage({
 							cmd: 'perform',
 							params: {
-								proc: 'user_delete',
+								proc: 'service_delete',
 								params: [JSON.stringify(p)]
 							}
 						}, function(resp) {

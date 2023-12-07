@@ -421,10 +421,10 @@ BEGIN
     END IF;
 
 	m_params = vc_params::jsonb;
-	m_service_id = m_params->>'service_id';
+--	m_service_id = m_params->>'service_id';
 	m_service_name = m_params->>'service_name';
 
-	SELECT * INTO m_service FROM system.services WHERE service_id = m_service_id AND service_name = m_service_name;
+	SELECT * INTO m_service FROM system.services WHERE service_name = m_service_name;
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Сервис не найден';
 	END IF;
